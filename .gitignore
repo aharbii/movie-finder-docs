@@ -1,0 +1,9 @@
+# MkDocs build directory
+site/
+
+# IDEs
+.vscode/
+.idea/
+
+# Structurizr models
+.structurizr/

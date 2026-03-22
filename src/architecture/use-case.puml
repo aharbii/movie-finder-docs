@@ -1,0 +1,19 @@
+@startuml
+left to right direction
+actor "User" as user
+
+rectangle "Movie Finder System" {
+  usecase "Register & Login" as UC1
+  usecase "Provide Plot Query" as UC2
+  usecase "View Conversation History" as UC3
+  usecase "Give Feedback on Match" as UC4
+  usecase "View Movie Metadata & Poster" as UC5
+}
+
+user --> UC1
+user --> UC2
+user --> UC3
+user --> UC4
+user --> UC5
+
+@enduml

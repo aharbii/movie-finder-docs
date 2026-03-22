@@ -1,0 +1,27 @@
+@startuml
+skinparam style strictuml
+actor User
+participant "Angular UI" as UI
+participant "FastAPI" as API
+participant "Agent (LangGraph)" as Agent
+participant "Qdrant" as VecDB
+participant "OpenAI" as LLM
+participant "IMDBApi" as IMDB
+
+User -> UI: Ask "What's the movie about dreams?"
+UI -> API: POST /chat/message
+API -> Agent: Invoke(AgentState with Query)
+Agent -> LLM: Determine intent and tools
+LLM --> Agent: ToolCall: RAG_Search("dreams")
+Agent -> VecDB: Similarity Search Vector("dreams")
+VecDB --> Agent: [Plot A, Plot B]
+Agent -> LLM: Summarize/Match plots to movies
+LLM --> Agent: ToolCall: IMDB_Search("Inception")
+Agent -> IMDB: GET /title?name=Inception
+IMDB --> Agent: Poster, Cast, Plot
+Agent -> LLM: Generate Final Response
+LLM --> Agent: "The movie is Inception..."
+Agent --> API: Return Response
+API --> UI: Present Chat Message + Movie Card
+UI --> User: View Recommendation
+@enduml
