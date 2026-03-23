@@ -213,6 +213,39 @@ paths:
         "422":
           $ref: "#/components/responses/ValidationError"
 
+  /chat/{session_id}:
+    delete:
+      tags: [chat]
+      summary: Delete session
+      description: >
+        Permanently delete a session and all its messages. Only the owning
+        user may delete their own sessions. Returns 204 on success.
+      operationId: deleteSession
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Session deleted.
+        "401":
+          description: Missing or expired access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+        "404":
+          description: Session not found or belongs to another user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+
   /chat/{session_id}/history:
     get:
       tags: [chat]
