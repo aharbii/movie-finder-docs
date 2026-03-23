@@ -1,0 +1,517 @@
+openapi: 3.1.0
+info:
+  title: Movie Finder API
+  description: >
+    AI-powered movie discovery and Q&A via LangGraph.
+
+    ## Authentication
+    All `/chat` endpoints require a Bearer token obtained from `/auth/login` or
+    `/auth/register`. Access tokens expire in **30 minutes**; use
+    `/auth/refresh` to obtain a new pair before expiry. Refresh tokens expire
+    in **7 days**.
+
+    ## Streaming
+    `POST /chat` returns a `text/event-stream` response. Use `fetch` with a
+    `ReadableStream` decoder — **not** `EventSource`, which is GET-only and
+    cannot carry a request body.
+
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+security: []   # default: no auth; overridden per-operation where required
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+paths:
+
+  # ── Auth ─────────────────────────────────────────────────────────────────
+
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Register
+      description: Create a new account and return a JWT pair.
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreate"
+            example:
+              email: alice@example.com
+              password: "s3cr3tPwd"
+      responses:
+        "201":
+          description: Account created — JWT pair returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Token"
+        "409":
+          description: Email already registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+              example:
+                detail: "Email already registered"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Login
+      description: Authenticate with email + password and return a JWT pair.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserLogin"
+            example:
+              email: alice@example.com
+              password: "s3cr3tPwd"
+      responses:
+        "200":
+          description: Authenticated — JWT pair returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Token"
+        "401":
+          description: Invalid credentials.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+              example:
+                detail: "Invalid credentials"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Refresh tokens
+      description: >
+        Exchange a valid refresh token for a new JWT pair.
+        Call this before the access token (30 min TTL) expires.
+        On 401 redirect the user to `/login`.
+      operationId: refresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: New JWT pair returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Token"
+        "401":
+          description: Refresh token invalid or expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  # ── Chat ─────────────────────────────────────────────────────────────────
+
+  /chat:
+    post:
+      tags: [chat]
+      summary: Chat (SSE stream)
+      description: |
+        Send a message and receive a **Server-Sent Events** stream of AI reply
+        tokens followed by a final result event.
+
+        ### Session lifecycle
+        - `session_id` is a client-generated **UUID v4**.
+        - If the session doesn't exist it is created automatically.
+        - If it belongs to another user the server returns **403**.
+
+        ### Stream format
+        Each SSE line has the form `data: <json>\n\n`.
+
+        **Token event** (one per streamed chunk):
+        ```json
+        { "type": "token", "content": "<chunk>" }
+        ```
+
+        **Done event** (exactly one, always last):
+        ```json
+        {
+          "type": "done",
+          "session_id": "uuid",
+          "reply": "full assistant reply",
+          "phase": "discovery | confirmation | qa",
+          "candidates": [...],        // only when phase == "confirmation"
+          "confirmed_movie": {...}    // only when phase == "qa"
+        }
+        ```
+
+        ### Conversation phases
+        | Phase | Description |
+        |-------|-------------|
+        | `discovery` | AI gathers preferences (default) |
+        | `confirmation` | AI found candidates; `candidates` array present |
+        | `qa` | User confirmed a movie; `confirmed_movie` object present |
+
+        The phase is driven entirely by the AI chain — the client is read-only.
+
+        ### Client implementation notes
+        Use `fetch()` with a `ReadableStream` decoder. Do **not** use
+        `EventSource` (GET-only, cannot carry a body). Parse the `data: `
+        prefix, JSON-decode each line, and skip blank lines. Accumulate
+        `token` events into a live text buffer; on `done` finalise and handle
+        phase data.
+      operationId: chat
+      security:
+        - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+            example:
+              session_id: "550e8400-e29b-41d4-a716-446655440000"
+              message: "I'm in the mood for a 90s sci-fi thriller"
+      responses:
+        "200":
+          description: 'SSE stream — `Content-Type: text/event-stream`.'
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseStream"
+        "401":
+          description: Missing or expired access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+        "403":
+          description: Session belongs to a different user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+              example:
+                detail: "Session not found"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /chat/{session_id}/history:
+    get:
+      tags: [chat]
+      summary: Get session history
+      description: >
+        Return the full message history for a session owned by the current
+        user. Use this to resume a session after page refresh or navigation.
+      operationId: getHistory
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the chat session.
+      responses:
+        "200":
+          description: Session history returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionHistory"
+        "404":
+          description: Session not found or belongs to another user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+              example:
+                detail: "Session not found"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  # ── Ops ──────────────────────────────────────────────────────────────────
+
+  /health:
+    get:
+      tags: [ops]
+      summary: Health check
+      description: 'Liveness probe. Returns `{"status": "ok"}` when the service is up.'
+      operationId: health
+      responses:
+        "200":
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+# ---------------------------------------------------------------------------
+# Components
+# ---------------------------------------------------------------------------
+components:
+
+  # ── Security ─────────────────────────────────────────────────────────────
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # ── Reusable responses ────────────────────────────────────────────────────
+  responses:
+    ValidationError:
+      description: Request body failed schema validation.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/HTTPValidationError"
+
+  # ── Schemas ───────────────────────────────────────────────────────────────
+  schemas:
+
+    # Auth input
+    UserCreate:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          description: Must be a valid e-mail address.
+        password:
+          type: string
+          minLength: 8
+          description: Minimum 8 characters.
+
+    UserLogin:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          description: The refresh token obtained from a previous auth call.
+
+    # Auth output
+    Token:
+      type: object
+      required: [access_token, refresh_token]
+      properties:
+        access_token:
+          type: string
+          description: >
+            Short-lived JWT (30 min). Send as `Authorization: Bearer <token>`
+            on every authenticated request.
+        refresh_token:
+          type: string
+          description: Long-lived token (7 days). Use with `/auth/refresh`.
+        token_type:
+          type: string
+          default: bearer
+
+    # Chat input
+    ChatRequest:
+      type: object
+      required: [session_id, message]
+      properties:
+        session_id:
+          type: string
+          format: uuid
+          description: >
+            Client-generated UUID v4. Creates the session on first use; reuses
+            it on subsequent messages.
+        message:
+          type: string
+          description: The user's chat message.
+
+    # SSE stream (logical schema — not a JSON body)
+    SseStream:
+      description: >
+        A sequence of `data: <json>\n\n` lines. Two event shapes are emitted:
+        `SseTokenEvent` (many) and `SseDoneEvent` (one, final).
+      oneOf:
+        - $ref: "#/components/schemas/SseTokenEvent"
+        - $ref: "#/components/schemas/SseDoneEvent"
+
+    SseTokenEvent:
+      type: object
+      required: [type, content]
+      properties:
+        type:
+          type: string
+          enum: [token]
+        content:
+          type: string
+          description: A single streamed text chunk.
+
+    SseDoneEvent:
+      type: object
+      required: [type, session_id, reply, phase]
+      properties:
+        type:
+          type: string
+          enum: [done]
+        session_id:
+          type: string
+          format: uuid
+        reply:
+          type: string
+          description: The complete assistant reply.
+        phase:
+          type: string
+          enum: [discovery, confirmation, qa]
+          description: Current conversation phase after this turn.
+        candidates:
+          type: array
+          description: Present only when `phase == "confirmation"`.
+          items:
+            $ref: "#/components/schemas/MovieCandidate"
+        confirmed_movie:
+          description: Present only when `phase == "qa"`.
+          $ref: "#/components/schemas/ConfirmedMovie"
+
+    MovieCandidate:
+      type: object
+      required: [rag_title, imdb_id, confidence]
+      properties:
+        rag_title:
+          type: string
+          description: Title as indexed in the RAG corpus.
+        imdb_id:
+          type: string
+          description: IMDB title identifier (e.g. `tt0133093`).
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Retrieval confidence score (0–1).
+
+    ConfirmedMovie:
+      type: object
+      description: Full IMDB metadata for the confirmed movie.
+      properties:
+        imdb_id:
+          type: string
+        title:
+          type: string
+        year:
+          type: integer
+        genres:
+          type: array
+          items:
+            type: string
+        plot:
+          type: string
+        rating:
+          type: number
+          format: float
+        poster_url:
+          type: string
+          format: uri
+      additionalProperties: true
+
+    # Chat history
+    SessionHistory:
+      type: object
+      required: [session_id, phase, messages]
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        phase:
+          type: string
+          enum: [discovery, confirmation, qa]
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+
+    Message:
+      type: object
+      required: [id, session_id, role, content, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # Errors
+    ErrorDetail:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+
+    HTTPValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationError"
+
+    ValidationError:
+      type: object
+      required: [loc, msg, type]
+      properties:
+        loc:
+          type: array
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          description: Path to the invalid field.
+        msg:
+          type: string
+        type:
+          type: string
+        input:
+          description: The value that failed validation.
+        ctx:
+          type: object
+          additionalProperties: true
