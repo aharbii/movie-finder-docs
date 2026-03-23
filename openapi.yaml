@@ -549,6 +549,13 @@ components:
           description: >
             Content of the first user message in this session. Used by the
             frontend to derive a display title. Null when no messages exist yet.
+        confirmed_movie:
+          nullable: true
+          description: >
+            Present (non-null) when `phase == "qa"`. The `EnrichedMovie`-shaped
+            dict stored at confirmation time. Null for discovery/confirmation
+            sessions. Same shape as `ConfirmedMovie`.
+          $ref: "#/components/schemas/ConfirmedMovie"
 
     # Chat history
     SessionHistory:
@@ -565,6 +572,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Message"
+        confirmed_movie:
+          nullable: true
+          description: >
+            Present (non-null) when `phase == "qa"`. Same shape as in
+            `SessionSummary`. Used to restore the movie detail panel and
+            session title after page reload.
+          $ref: "#/components/schemas/ConfirmedMovie"
 
     Message:
       type: object
