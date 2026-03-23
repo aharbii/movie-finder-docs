@@ -419,6 +419,13 @@ components:
           minimum: 0
           maximum: 1
           description: Retrieval confidence score (0–1).
+        imdb_poster_url:
+          type: string
+          format: uri
+          nullable: true
+          description: >
+            Poster image URL fetched from IMDB during enrichment.
+            Null when no confident IMDB match was found for this candidate.
 
     ConfirmedMovie:
       type: object
