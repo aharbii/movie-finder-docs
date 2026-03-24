@@ -22,8 +22,9 @@ services/chain.md
 services/imdbapi.md
 services/rag-ingestion.md
 
-# ── Structurizr Lite auto-generated workspace JSON ───────────────────────────
+# ── Structurizr auto-generated files ─────────────────────────────────────────
 architecture/workspace.json
+architecture/.structurizr/
 
 # ── OS ───────────────────────────────────────────────────────────────────────
 .DS_Store
