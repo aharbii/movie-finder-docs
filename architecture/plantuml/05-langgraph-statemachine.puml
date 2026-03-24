@@ -1,0 +1,118 @@
+@startuml 05-langgraph-statemachine
+title Movie Finder — LangGraph Phase & Routing State Machine
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ArrowColor #555555
+skinparam ArrowFontSize 11
+skinparam StateBackgroundColor #EEF2FF
+skinparam StateBorderColor #3D6DB5
+skinparam StateHeaderBackgroundColor #3D6DB5
+skinparam StateHeaderFontColor white
+skinparam StateFontSize 13
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam StartColor #222222
+skinparam EndColor #222222
+
+' ─────────────────────────────────────────────────────────
+' Phase state machine
+' ─────────────────────────────────────────────────────────
+
+[*] --> Discovery : new session / first message
+
+state "DISCOVERY PHASE" as Discovery {
+  state "RAG Search Node" as rag_node : embed query → Qdrant top-K
+  state "IMDb Enrichment Node" as imdb_node : async parallel metadata fetch
+  state "Validation Node" as val_node : deduplicate · filter · sort by confidence
+  state "Presentation Node" as pres_node : format candidates as AI message
+
+  rag_node --> imdb_node : rag_candidates[]
+  imdb_node --> val_node : enriched_movies[]
+  val_node --> pres_node : candidates found\n(confidence ≥ threshold)
+  val_node --> Refinement : no confident candidates
+}
+
+note right of Discovery
+  Triggered on every user message
+  when phase == "discovery"
+end note
+
+state "CONFIRMATION PHASE" as Confirmation {
+  state "Confirmation Node\n(Claude Haiku)" as conf_node : classify user intent
+  state "Wait" as wait_state : re-present candidates\nor ask for clarification
+}
+
+pres_node --> Confirmation : phase = "confirmation"\ncandidates presented to user
+
+state "REFINEMENT CYCLE" as Refinement {
+  state "Refinement Node\n(Claude Sonnet)" as ref_node : extract plot details\nbuild refined query
+  state check_count <<choice>>
+  check_count --> ref_node : refinement_count < 3
+  check_count --> DeadEnd : refinement_count == 3
+  ref_node --> Discovery : refined query\n(loop back to RAG)
+}
+
+note right of Refinement
+  ⚠ Max 3 refinement cycles.
+  refinement_count incremented
+  by RefinementNode each cycle.
+end note
+
+conf_node --> wait_state : next_action = "wait"\n(unclear response)
+conf_node --> Refinement : next_action = "refine"\n(user rejects all candidates)
+conf_node --> QA : next_action = "confirmed"\n(user picks a movie)
+conf_node --> DeadEnd : next_action = "exhausted"
+wait_state --> Confirmation : next user message
+
+val_node --> Refinement : no candidates above\nconfidence threshold
+
+state "Q&A PHASE" as QA {
+  state "Q&A Agent Node\n(Claude Sonnet + ReAct)" as qa_node : answer questions about confirmed movie
+  state "IMDb Tools" as imdb_tools : fetch live movie details\nvia LangChain tools
+
+  qa_node --> imdb_tools : tool call (ReAct loop)
+  imdb_tools --> qa_node : tool result
+}
+
+note right of QA
+  Once in QA phase, every subsequent
+  user message triggers QAAgentNode.
+  Confirmed movie context is always
+  available in MovieFinderState.
+end note
+
+state "DEAD END" as DeadEnd {
+  state "Dead-End Node" as dead_node : generate "couldn't find it"\ngraceful exit message
+}
+
+note right of DeadEnd
+  ⚠ Session remains in "discovery" phase
+  after dead-end — user can retry with
+  a new description.
+end note
+
+Refinement --> DeadEnd : refinement_count == 3
+
+QA --> [*] : session deleted by user
+DeadEnd --> Discovery : user retries with new description
+DeadEnd --> [*] : session deleted by user
+
+' ─────────────────────────────────────────────────────────
+' Legend
+' ─────────────────────────────────────────────────────────
+legend right
+  | **Phase** | **Trigger** |
+  | discovery | phase == "discovery" (default) |
+  | confirmation | candidates presented to user |
+  | qa | user confirms movie |
+
+  | **next_action** | **Routing** |
+  | wait | re-ask in confirmation phase |
+  | confirmed | → Q&A phase |
+  | refine | → refinement cycle |
+  | exhausted | → dead-end |
+endlegend
+
+@enduml

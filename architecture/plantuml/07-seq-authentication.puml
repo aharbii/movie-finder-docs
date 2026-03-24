@@ -1,0 +1,142 @@
+@startuml 07-seq-authentication
+title Movie Finder — Authentication Flow (Sequence Diagram)
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam sequenceArrowFontSize 11
+skinparam sequenceParticipantFontSize 13
+skinparam sequenceLifeLineBorderColor #3D6DB5
+skinparam sequenceParticipantBackgroundColor #EEF2FF
+skinparam sequenceParticipantBorderColor #3D6DB5
+skinparam sequenceActorBackgroundColor #FFF9C4
+skinparam sequenceActorBorderColor #F57F17
+skinparam sequenceDividerBackgroundColor #E8EAF6
+skinparam sequenceDividerBorderColor #3949AB
+skinparam sequenceDividerFontColor #1A237E
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam ArrowColor #555555
+
+actor "Browser\n(Angular)" as browser
+participant "Auth Router\n(FastAPI)" as auth_router
+participant "JWT Middleware\n(Dependency)" as jwt_mw
+participant "Session Store\n(asyncpg)" as store
+database "PostgreSQL" as pg
+
+' ═══════════════════════════════════════════════════════
+== REGISTER ==
+' ═══════════════════════════════════════════════════════
+
+browser -> auth_router : POST /auth/register\n{email, password}
+activate auth_router
+
+auth_router -> auth_router : bcrypt.hashpw(password, salt)
+note right : password never leaves auth layer as plaintext
+
+auth_router -> store : create_user(email, hashed_password)
+activate store
+
+store -> pg : INSERT INTO users\n(id, email, hashed_password, created_at)
+activate pg
+pg --> store : user row
+deactivate pg
+
+store --> auth_router : UserInDB
+deactivate store
+
+auth_router -> auth_router : create_access_token(sub=user_id)\ncreate_refresh_token(sub=user_id)
+
+auth_router --> browser : 201 Created\n{access_token (30 min), refresh_token (7 days), token_type: "bearer"}
+deactivate auth_router
+
+note over browser
+  Client stores both tokens
+  (localStorage or memory)
+end note
+
+' ═══════════════════════════════════════════════════════
+== LOGIN ==
+' ═══════════════════════════════════════════════════════
+
+browser -> auth_router : POST /auth/login\n{email, password}
+activate auth_router
+
+auth_router -> store : get_user_by_email(email)
+activate store
+
+store -> pg : SELECT * FROM users WHERE email = $1
+activate pg
+pg --> store : user row  (or NULL)
+deactivate pg
+
+store --> auth_router : UserInDB  (or None)
+deactivate store
+
+alt user found
+  auth_router -> auth_router : bcrypt.checkpw(password, hashed_password)
+  note right : ⚠ Issue #12: returns full UserInDB\nincluding hashed_password to caller
+
+  alt password matches
+    auth_router --> browser : 200 OK\n{access_token, refresh_token, token_type: "bearer"}
+  else password mismatch
+    auth_router --> browser : 401 Unauthorized\n{"detail": "Incorrect email or password"}
+  end
+else user not found
+  auth_router --> browser : 401 Unauthorized
+end
+deactivate auth_router
+
+' ═══════════════════════════════════════════════════════
+== TOKEN REFRESH ==
+' ═══════════════════════════════════════════════════════
+
+note over browser
+  Called when access_token expires
+  (client detects 401 response)
+end note
+
+browser -> auth_router : POST /auth/refresh\n{refresh_token}
+activate auth_router
+
+auth_router -> jwt_mw : decode_token(refresh_token)
+activate jwt_mw
+jwt_mw --> auth_router : {sub: user_id, exp: ...}  (or raises 401)
+deactivate jwt_mw
+
+auth_router -> auth_router : create_access_token(sub=user_id)\ncreate_refresh_token(sub=user_id)
+
+note right of auth_router
+  ⚠ Issue #5: refresh tokens cannot
+  be revoked — there is no token
+  blacklist or session table for tokens.
+  A stolen refresh_token is valid for
+  7 days with no remediation path.
+end note
+
+auth_router --> browser : 200 OK\n{new access_token, new refresh_token}
+deactivate auth_router
+
+' ═══════════════════════════════════════════════════════
+== LOGOUT ==
+' ═══════════════════════════════════════════════════════
+
+browser -> auth_router : POST /auth/logout\nAuthorization: Bearer <access_token>
+activate auth_router
+
+auth_router -> jwt_mw : get_current_user(access_token)
+activate jwt_mw
+jwt_mw --> auth_router : UserInDB
+deactivate jwt_mw
+
+note over auth_router
+  ⚠ Logout only validates the Bearer token.
+  It does NOT invalidate the refresh_token
+  — the user can still obtain new access
+  tokens until the refresh_token expires.
+end note
+
+auth_router --> browser : 200 OK\n{"message": "Logged out successfully"}
+deactivate auth_router
+
+@enduml

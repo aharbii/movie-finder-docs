@@ -1,0 +1,254 @@
+@startuml 04-langgraph-pipeline
+title Movie Finder — LangGraph Multi-Agent Pipeline (chain module)
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam classFontSize 12
+skinparam classAttributeFontSize 11
+skinparam ArrowColor #555555
+skinparam ClassBackgroundColor #F8F9FA
+skinparam ClassBorderColor #6A1B9A
+skinparam ClassHeaderBackgroundColor #6A1B9A
+skinparam ClassHeaderFontColor white
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam InterfaceBackgroundColor #E8EAF6
+skinparam InterfaceBorderColor #3949AB
+skinparam AbstractBackgroundColor #EDE7F6
+skinparam AbstractBorderColor #6A1B9A
+
+' ─────────────────────────────────────────────────────────
+' Graph Orchestrator
+' ─────────────────────────────────────────────────────────
+package "chain (LangGraph Module)" #F8F9FA {
+
+  class MovieFinderGraph <<LangGraph>> {
+    - checkpointer : MemorySaver
+    - graph : CompiledStateGraph
+    --
+    + compile_graph() : CompiledStateGraph
+    + stream_events(message, history, phase) : AsyncIterator
+  }
+
+  note right of MovieFinderGraph
+    ⚠ Issue #2: MemorySaver is in-process
+    and non-persistent — state is lost on
+    restart and breaks multi-replica deployments.
+    Fix: replace with PostgresSaver or
+    RedisSaver checkpointer.
+    ⚠ Issue #18: create_agent import path
+    is non-standard (tech debt).
+  end note
+
+  ' ─────────────────────────────────────────────────────
+  ' Graph State
+  ' ─────────────────────────────────────────────────────
+  package "State" #EDE7F6 {
+    class MovieFinderState <<TypedDict, total=False>> {
+      + messages : Annotated<List<BaseMessage>, add_messages>
+      + phase : str
+      + next_action : str
+      + refinement_count : int
+      + user_plot_query : str
+      + rag_candidates : List<Dict>
+      + enriched_movies : List<Dict>
+      + confirmed_movie_id : str
+      + confirmed_movie_title : str
+      + confirmed_movie_data : Dict
+    }
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Abstract Node Interface
+  ' ─────────────────────────────────────────────────────
+  abstract class BaseNode <<Abstract>> {
+    + __call__(state : MovieFinderState) : MovieFinderState
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Discovery Phase Nodes
+  ' ─────────────────────────────────────────────────────
+  package "Discovery Phase" #F0FFF4 {
+
+    class RAGSearchNode {
+      - search_service : MovieSearchService
+      --
+      + __call__(state) : MovieFinderState
+      ' Embeds user_plot_query via OpenAI,
+      ' queries Qdrant top-K, returns rag_candidates
+    }
+
+    class IMDbEnrichmentNode {
+      - imdb_client : IMDbApiClient
+      --
+      + __call__(state) : MovieFinderState
+      ' Async parallel fetch of IMDb metadata
+      ' per RAG candidate. Returns enriched_movies.
+    }
+
+    note bottom of IMDbEnrichmentNode
+      ⚠ Issue #16: artificial stagger delay
+      between IMDb search requests adds
+      unnecessary latency (not needed for async).
+      ⚠ Issue #8: retry base delay is 30 seconds
+      — blocks SSE stream during failures.
+    end note
+
+    class ValidationNode {
+      + CONFIDENCE_THRESHOLD : Float = 0.5
+      --
+      + __call__(state) : MovieFinderState
+      ' Deduplicates candidates, filters by
+      ' confidence threshold, sorts by score.
+      ' Routes to Presentation or Refinement.
+    }
+
+    class PresentationNode {
+      --
+      + __call__(state) : MovieFinderState
+      ' Formats enriched_movies as a natural-
+      ' language AI message for the user.
+      ' Sets phase = "confirmation".
+    }
+
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Confirmation Phase Nodes
+  ' ─────────────────────────────────────────────────────
+  package "Confirmation Phase" #FFF8F0 {
+
+    class ConfirmationNode {
+      - model : ChatAnthropic <<Haiku>>
+      --
+      + __call__(state) : MovieFinderState
+      ' Classifies user response as one of:
+      ' "confirmed" | "refine" | "wait" | "exhausted"
+      ' Uses Claude Haiku for low-latency classification.
+    }
+
+    class RefinementNode {
+      - model : ChatAnthropic <<Sonnet>>
+      --
+      + __call__(state) : MovieFinderState
+      ' Extracts additional plot details from
+      ' conversation history and builds a refined
+      ' query for the next RAG search cycle.
+      ' Increments refinement_count.
+    }
+
+    note bottom of RefinementNode
+      Maximum 3 refinement cycles.
+      After 3: next_action = "exhausted"
+      → DeadEndNode
+    end note
+
+    class DeadEndNode {
+      --
+      + __call__(state) : MovieFinderState
+      ' Generates a graceful "couldn't find it"
+      ' message to the user when all refinement
+      ' cycles are exhausted.
+    }
+
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Q&A Phase Nodes
+  ' ─────────────────────────────────────────────────────
+  package "Q&A Phase" #F0F4FF {
+
+    class QAAgentNode {
+      - model : ChatAnthropic <<Sonnet>>
+      - tools : List<BaseTool>
+      --
+      + __call__(state) : MovieFinderState
+      ' ReAct agent: Claude Sonnet + IMDb tools.
+      ' Answers open-ended questions about the
+      ' confirmed movie using live IMDb data.
+    }
+
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Supporting Services
+  ' ─────────────────────────────────────────────────────
+  package "Supporting Services" #ECEFF1 {
+
+    class MovieSearchService {
+      - client : OpenAI
+      - qdrant : QdrantClient
+      - collection : String
+      - embedding_model : String = "text-embedding-3-large"
+      --
+      + search(query : String, limit : int) : List<RAGCandidate>
+      - embed(text : String) : List<Float>
+    }
+
+    note right of MovieSearchService
+      ⚠ Issue #7: OpenAI client and QdrantClient
+      are re-created on EVERY LangGraph node
+      invocation. Should be singleton services
+      injected via graph config or app.state.
+    end note
+
+    class IMDbApiClient {
+      - base_url : String = "https://imdbapi.dev"
+      - session : httpx.AsyncClient
+      --
+      + search_titles(query : String) : List<Title>
+      + get_title(imdb_id : String) : Title
+      + get_title_details(imdb_id : String) : TitleDetails
+    }
+
+    class LangChainIMDbTool <<LangChainTool>> {
+      + name : String
+      + description : String
+      --
+      + _run(query : String) : String
+      + _arun(query : String) : String
+    }
+
+  }
+
+}
+
+' ─────────────────────────────────────────────────────────
+' Inheritance & composition
+' ─────────────────────────────────────────────────────────
+BaseNode <|-- RAGSearchNode
+BaseNode <|-- IMDbEnrichmentNode
+BaseNode <|-- ValidationNode
+BaseNode <|-- PresentationNode
+BaseNode <|-- ConfirmationNode
+BaseNode <|-- RefinementNode
+BaseNode <|-- QAAgentNode
+BaseNode <|-- DeadEndNode
+
+' ─────────────────────────────────────────────────────────
+' Graph wires nodes
+' ─────────────────────────────────────────────────────────
+MovieFinderGraph --> MovieFinderState : manages state
+MovieFinderGraph *-- RAGSearchNode : node
+MovieFinderGraph *-- IMDbEnrichmentNode : node
+MovieFinderGraph *-- ValidationNode : node
+MovieFinderGraph *-- PresentationNode : node
+MovieFinderGraph *-- ConfirmationNode : node
+MovieFinderGraph *-- RefinementNode : node
+MovieFinderGraph *-- QAAgentNode : node
+MovieFinderGraph *-- DeadEndNode : node
+
+RAGSearchNode --> MovieSearchService : uses
+IMDbEnrichmentNode --> IMDbApiClient : uses (async parallel)
+QAAgentNode --> LangChainIMDbTool : ReAct tool
+QAAgentNode --> IMDbApiClient : via tool
+
+MovieSearchService ..> MovieFinderState : reads user_plot_query\nwrites rag_candidates
+IMDbEnrichmentNode ..> MovieFinderState : reads rag_candidates\nwrites enriched_movies
+
+@enduml

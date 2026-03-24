@@ -1,0 +1,140 @@
+@startuml 02-system-architecture
+title Movie Finder — System Architecture Overview
+
+skinparam backgroundColor white
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam ArrowColor #555555
+skinparam ArrowFontSize 11
+skinparam ComponentBackgroundColor #EEF2FF
+skinparam ComponentBorderColor #3D6DB5
+skinparam ComponentFontSize 13
+skinparam DatabaseBackgroundColor #E3F2FD
+skinparam DatabaseBorderColor #1565C0
+skinparam ActorBackgroundColor #FFF9C4
+skinparam ActorBorderColor #F57F17
+skinparam CloudBackgroundColor #F3E5F5
+skinparam CloudBorderColor #6A1B9A
+skinparam NodeBackgroundColor #E8F5E9
+skinparam NodeBorderColor #2E7D32
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+
+' ─────────────────────────────────────────────────────────
+' Actors
+' ─────────────────────────────────────────────────────────
+actor "End User" as user #FFF9C4
+
+' ─────────────────────────────────────────────────────────
+' Movie Finder Platform (runtime)
+' ─────────────────────────────────────────────────────────
+package "Movie Finder Platform" #F8F9FA {
+
+  package "Browser" #FFFFFF {
+    component [Angular SPA\nnginx:stable-alpine] as frontend <<Angular 21 / TS 5.9>>
+  }
+
+  package "Azure Container Apps" #FFFFFF {
+    component [FastAPI Backend\nPython 3.13] as backend <<FastAPI / asyncpg>>
+
+    package "Backend Internals" #F0F4FF {
+      component [Auth Router] as auth_router <<FastAPI Router>>
+      component [Chat Router] as chat_router <<FastAPI Router>>
+      component [JWT Middleware] as jwt_mw <<FastAPI Dependency>>
+      component [Session Store] as session_store <<asyncpg>>
+      component [LangGraph Chain\n(8 nodes)] as chain <<LangGraph / LangChain>>
+      component [RAG Service] as rag_svc <<qdrant-client / openai>>
+      component [IMDb API Client] as imdb_client <<httpx / tenacity>>
+    }
+  }
+
+  package "Offline / Scheduled" #FFFFFF {
+    component [RAG Ingestion Pipeline] as rag_ingest <<kagglehub / pandas / openai>>
+  }
+
+}
+
+' ─────────────────────────────────────────────────────────
+' Managed Data Stores
+' ─────────────────────────────────────────────────────────
+package "Azure Managed Services" #E8F5E9 {
+  database "PostgreSQL 16\n(Flexible Server)" as postgres <<asyncpg / TCP 5432>>
+  node "Azure Container Registry" as acr <<Docker images>>
+  node "Azure Key Vault" as akv <<Secrets / Managed Identity>>
+}
+
+' ─────────────────────────────────────────────────────────
+' External Services
+' ─────────────────────────────────────────────────────────
+cloud "Qdrant Cloud\n(Vector DB)" as qdrant <<HTTPS / gRPC>>
+cloud "OpenAI API\n(text-embedding-3-large)" as openai <<HTTPS>>
+cloud "Anthropic Claude API\n(Haiku + Sonnet)" as anthropic <<HTTPS>>
+cloud "imdbapi.dev\n(Movie Metadata)" as imdbapi <<HTTPS>>
+
+' ─────────────────────────────────────────────────────────
+' CI/CD
+' ─────────────────────────────────────────────────────────
+node "Jenkins Server\n(Ubuntu + ngrok)" as jenkins <<On-premise CI/CD>>
+
+note right of jenkins
+  ⚠ Issue #17: uses free ngrok tunnel
+  for GitHub webhook delivery
+  ⚠ Issue #21: candidate for migration
+  to GitHub Actions
+end note
+
+' ─────────────────────────────────────────────────────────
+' Relationships — User Flows
+' ─────────────────────────────────────────────────────────
+user --> frontend : HTTPS (port 80)
+frontend --> backend : REST + SSE\nAuthorization: Bearer JWT
+
+' ─────────────────────────────────────────────────────────
+' Relationships — Backend Internals
+' ─────────────────────────────────────────────────────────
+backend --> auth_router : routes /auth/*
+backend --> chat_router : routes /chat/*
+chat_router --> jwt_mw : validate Bearer token
+auth_router --> session_store : create/verify users
+chat_router --> session_store : read/write sessions & messages
+chat_router --> chain : stream_events(message, history, phase)
+chain --> rag_svc : RAG Search node
+chain --> imdb_client : IMDb Enrichment node
+chain --> anthropic : Claude Haiku (classify)\nClaude Sonnet (refine, Q&A)
+rag_svc --> openai : embed(query) →\ntext-embedding-3-large
+rag_svc --> qdrant : similarity_search(vector, top_K)
+imdb_client --> imdbapi : search + title details\n(parallel, async)
+
+' ─────────────────────────────────────────────────────────
+' Relationships — Data & Infra
+' ─────────────────────────────────────────────────────────
+session_store --> postgres : asyncpg connection pool\nusers / sessions / messages
+
+note bottom of session_store
+  ⚠ Issue #3: schema managed by raw DDL
+  No Alembic migrations, no indexes
+  ⚠ Issue #9: no CORS middleware
+  ⚠ Issue #4: no rate limiting on any endpoint
+  ⚠ Issue #13: no input length validation
+end note
+
+backend --> akv : fetch secrets at startup\n(Managed Identity)
+jenkins --> acr : docker push (:sha8 / :latest / :v*)
+acr --> backend : supply container image
+
+' ─────────────────────────────────────────────────────────
+' Relationships — RAG Ingestion (offline)
+' ─────────────────────────────────────────────────────────
+rag_ingest --> openai : batch embed movie plots\n(text-embedding-3-large)
+rag_ingest --> qdrant : upsert 3072-dim vectors\n(movies collection)
+
+note bottom of qdrant
+  ⚠ Issue #14: single production Qdrant
+  cluster shared across ALL environments
+  No dev/staging isolation
+end note
+
+@enduml

@@ -1,0 +1,226 @@
+@startuml 06-frontend-architecture
+title Movie Finder — Frontend Architecture (Angular 21)
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam classFontSize 12
+skinparam classAttributeFontSize 11
+skinparam ArrowColor #555555
+skinparam ClassBackgroundColor #F8F9FA
+skinparam ClassBorderColor #E65100
+skinparam ClassHeaderBackgroundColor #E65100
+skinparam ClassHeaderFontColor white
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam InterfaceBackgroundColor #FFF3E0
+skinparam InterfaceBorderColor #E65100
+
+' ─────────────────────────────────────────────────────────
+' Root
+' ─────────────────────────────────────────────────────────
+package "Angular Application" #F8F9FA {
+
+  class AppComponent <<RootComponent>> {
+    + title : String = "movie-finder"
+    --
+    ' Declares router-outlet
+    ' Bootstrapped in main.ts
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Core Module
+  ' ─────────────────────────────────────────────────────
+  package "core/" #FFF8F0 {
+
+    package "core/models" {
+      class AuthModels <<Interfaces>> {
+        + User
+        + LoginRequest
+        + RegisterRequest
+        + TokenPair
+      }
+      class ChatModels <<Interfaces>> {
+        + ChatSession
+        + Message
+        + SSEEvent
+        + SSETokenEvent
+        + SSEDoneEvent
+        + MovieCandidate
+        + ConfirmedMovie
+      }
+    }
+
+    package "core/services" {
+
+      class AuthService <<AngularService, providedIn: root>> {
+        - currentUser$ : BehaviorSubject<User|null>
+        - http : HttpClient
+        --
+        + isAuthenticated() : Boolean
+        + currentUser() : Signal<User|null>
+        + register(email, password) : Observable<TokenPair>
+        + login(email, password) : Observable<TokenPair>
+        + refresh() : Observable<TokenPair>
+        + logout() : Observable<void>
+        - storeTokens(pair : TokenPair) : void
+        - clearTokens() : void
+        + getAccessToken() : String|null
+        + getRefreshToken() : String|null
+      }
+
+      class ChatService <<AngularService, providedIn: root>> {
+        - sessions$ : BehaviorSubject<ChatSession[]>
+        - activeSession$ : BehaviorSubject<ChatSession|null>
+        - http : HttpClient
+        --
+        + sessions : Signal<ChatSession[]>
+        + activeSession : Signal<ChatSession|null>
+        + loadSessions() : Observable<ChatSession[]>
+        + createSession() : Observable<ChatSession>
+        + selectSession(id : String) : void
+        + deleteSession(id : String) : Observable<void>
+        + sendMessage(sessionId, message) : EventSource
+        + getHistory(sessionId) : Observable<Message[]>
+      }
+
+    }
+
+    package "core/guards" {
+      class AuthGuard <<CanActivateFn>> {
+        --
+        + canActivate(route, state) : Observable<Boolean|UrlTree>
+        ' Redirects to /auth/login if not authenticated
+      }
+    }
+
+    package "core/interceptors" {
+      class AuthInterceptor <<HttpInterceptorFn>> {
+        --
+        + intercept(req, next) : Observable<HttpEvent>
+        ' Injects Authorization: Bearer <access_token>
+        ' on all outgoing requests to /api/*
+      }
+    }
+
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Features: Auth
+  ' ─────────────────────────────────────────────────────
+  package "features/auth/" #F0F4FF {
+
+    class LoginComponent <<StandaloneComponent>> {
+      - authService : AuthService
+      - router : Router
+      + form : FormGroup
+      --
+      + onSubmit() : void
+      ' Calls authService.login()
+      ' On success → navigate to /chat
+    }
+
+    class RegisterComponent <<StandaloneComponent>> {
+      - authService : AuthService
+      - router : Router
+      + form : FormGroup
+      --
+      + onSubmit() : void
+      ' Calls authService.register()
+      ' On success → navigate to /chat
+    }
+
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Features: Chat
+  ' ─────────────────────────────────────────────────────
+  package "features/chat/" #F0FFF4 {
+
+    class ChatComponent <<StandaloneComponent>> {
+      - chatService : ChatService
+      - authService : AuthService
+      + messages : Signal<Message[]>
+      + isStreaming : Signal<Boolean>
+      + currentPhase : Signal<String>
+      + confirmedMovie : Signal<ConfirmedMovie|null>
+      + candidates : Signal<MovieCandidate[]>
+      --
+      + sendMessage(text : String) : void
+      + handleSSEToken(event : SSETokenEvent) : void
+      + handleSSEDone(event : SSEDoneEvent) : void
+      + deleteSession(id : String) : void
+    }
+
+    package "chat/components/" {
+
+      class CandidateCardsComponent <<StandaloneComponent>> {
+        + candidates : InputSignal<MovieCandidate[]>
+        ' Displays movie poster cards during
+        ' confirmation phase
+      }
+
+      class MessageBubbleComponent <<StandaloneComponent>> {
+        + message : InputSignal<Message>
+        ' Renders individual chat bubble.
+        ' Supports markdown via marked.
+      }
+
+      class MoviePanelComponent <<StandaloneComponent>> {
+        + movie : InputSignal<ConfirmedMovie>
+        ' Shows confirmed movie detail panel
+        ' during Q&A phase
+      }
+
+      class SessionSidebarComponent <<StandaloneComponent>> {
+        + sessions : InputSignal<ChatSession[]>
+        + activeId : InputSignal<String>
+        + onSelect : OutputEmitter<String>
+        + onDelete : OutputEmitter<String>
+        ' Lists sessions, triggers navigation
+      }
+
+    }
+
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Routing
+  ' ─────────────────────────────────────────────────────
+  package "app.routes.ts" #ECEFF1 {
+    class AppRoutes <<Routes>> {
+      /auth/login → LoginComponent
+      /auth/register → RegisterComponent
+      /chat → ChatComponent [AuthGuard]
+      / → redirect to /chat
+    }
+  }
+
+}
+
+' ─────────────────────────────────────────────────────────
+' Relationships
+' ─────────────────────────────────────────────────────────
+AppComponent --> AppRoutes : uses router-outlet
+
+LoginComponent --> AuthService : login()
+RegisterComponent --> AuthService : register()
+ChatComponent --> ChatService : sendMessage(), loadSessions()
+ChatComponent --> AuthService : logout()
+
+ChatComponent *-- CandidateCardsComponent : child
+ChatComponent *-- MessageBubbleComponent : child (×N)
+ChatComponent *-- MoviePanelComponent : child
+ChatComponent *-- SessionSidebarComponent : child
+
+AuthGuard --> AuthService : isAuthenticated()
+AuthInterceptor --> AuthService : getAccessToken()
+
+ChatService ..> ChatModels : produces
+AuthService ..> AuthModels : produces
+
+@enduml

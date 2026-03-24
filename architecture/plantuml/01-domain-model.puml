@@ -1,0 +1,187 @@
+@startuml 01-domain-model
+title Movie Finder — Domain Model
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam classFontSize 13
+skinparam classAttributeFontSize 12
+skinparam ArrowColor #555555
+skinparam ClassBackgroundColor #F8F9FA
+skinparam ClassBorderColor #3D6DB5
+skinparam ClassHeaderBackgroundColor #3D6DB5
+skinparam ClassHeaderFontColor white
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FFFFFF
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam EnumerationBackgroundColor #E8F5E9
+skinparam EnumerationBorderColor #388E3C
+skinparam EnumerationHeaderBackgroundColor #388E3C
+skinparam EnumerationHeaderFontColor white
+
+' ─────────────────────────────────────────────────────────
+' Authentication & Identity
+' ─────────────────────────────────────────────────────────
+package "Authentication" #FFF8F0 {
+
+  class User {
+    + id : String <<UUID>>
+    + email : String <<UNIQUE>>
+    - hashed_password : String <<bcrypt>>
+    + created_at : String <<ISO-8601>>
+    + last_login : String <<ISO-8601>>
+    --
+    + verify_password(plain : String) : Boolean
+  }
+
+  class TokenPair {
+    + access_token : String <<JWT HS256>>
+    + refresh_token : String
+    + token_type : String = "bearer"
+  }
+
+  note bottom of TokenPair
+    access_token TTL: 30 minutes
+    refresh_token TTL: 7 days
+    ⚠ Issue #5: refresh tokens
+    cannot be revoked (no blacklist)
+  end note
+
+}
+
+' ─────────────────────────────────────────────────────────
+' Session & Messaging
+' ─────────────────────────────────────────────────────────
+package "Session & Messaging" #F0F4FF {
+
+  class ChatSession {
+    + session_id : String <<UUID>>
+    + user_id : String <<FK → User>>
+    + title : String
+    + phase : String
+    + confirmed_movie : String <<TEXT/JSON>>
+    + created_at : String
+    + updated_at : String
+  }
+
+  note bottom of ChatSession
+    ⚠ Issue #10: confirmed_movie stored as
+    TEXT, not JSONB — no server-side filtering
+    ⚠ Issue #11: no pagination on listing
+  end note
+
+  class Message {
+    + id : String <<UUID>>
+    + session_id : String <<FK → ChatSession>>
+    + role : String
+    + content : String
+    + created_at : String
+  }
+
+}
+
+' ─────────────────────────────────────────────────────────
+' Movie Discovery Value Objects
+' ─────────────────────────────────────────────────────────
+package "Movie Discovery" #F0FFF4 {
+
+  class MovieCandidate {
+    + rag_title : String
+    + imdb_id : String
+    + imdb_title : String
+    + imdb_year : Integer
+    + imdb_rating : Float
+    + imdb_poster_url : String
+    + confidence : Float
+  }
+
+  note right of MovieCandidate
+    confidence = (0.4 × cosine_similarity)
+                + (0.6 × imdb_title_year_match)
+    Range: [0.0, 1.0]
+  end note
+
+  class ConfirmedMovie {
+    + imdb_id : String
+    + imdb_title : String
+    + imdb_year : Integer
+    + imdb_rating : Float
+    + imdb_plot : String
+    + imdb_genres : List<String>
+    + imdb_directors : List<String>
+    + imdb_stars : List<String>
+    + imdb_poster_url : String
+    + rag_title : String
+    + rag_year : Integer
+    + confidence : Float
+  }
+
+}
+
+' ─────────────────────────────────────────────────────────
+' AI Pipeline State
+' ─────────────────────────────────────────────────────────
+package "AI Pipeline State" #FFF0F8 {
+
+  class MovieFinderState <<TypedDict>> {
+    + messages : List<BaseMessage> <<add_messages>>
+    + phase : String
+    + next_action : String
+    + refinement_count : Integer
+    + user_plot_query : String
+    + rag_candidates : List<Dict>
+    + enriched_movies : List<Dict>
+    + confirmed_movie_id : String
+    + confirmed_movie_title : String
+    + confirmed_movie_data : Dict
+  }
+
+  note right of MovieFinderState
+    total=False — all fields are Optional
+    ⚠ Issue #15: total=False weakens type
+    safety; prefer Optional[T] per field
+    phase: "discovery"|"confirmation"|"qa"
+    next_action: "wait"|"confirmed"|
+                 "refine"|"exhausted"
+    Max refinement_count = 3
+  end note
+
+  enum SessionPhase <<phase lifecycle>> {
+    DISCOVERY
+    CONFIRMATION
+    QA
+  }
+
+  enum MessageRole {
+    USER
+    ASSISTANT
+  }
+
+  enum NextAction <<routing signal>> {
+    WAIT
+    CONFIRMED
+    REFINE
+    EXHAUSTED
+  }
+
+}
+
+' ─────────────────────────────────────────────────────────
+' Relationships
+' ─────────────────────────────────────────────────────────
+User "1" --> "0..*" ChatSession : owns >
+ChatSession "1" --> "0..*" Message : contains >
+ChatSession "0..1" --> "0..1" ConfirmedMovie : confirms >
+
+User ..> TokenPair : receives on auth >
+
+MovieFinderState ..> SessionPhase : phase field
+MovieFinderState ..> NextAction : next_action field
+Message ..> MessageRole : role field
+
+MovieFinderState "0..1" --> "0..1" ConfirmedMovie : confirmed_movie_data
+
+@enduml

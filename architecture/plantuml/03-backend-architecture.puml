@@ -1,0 +1,238 @@
+@startuml 03-backend-architecture
+title Movie Finder — Backend Internal Architecture
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam classFontSize 13
+skinparam classAttributeFontSize 12
+skinparam ArrowColor #555555
+skinparam ClassBackgroundColor #F8F9FA
+skinparam ClassBorderColor #3D6DB5
+skinparam ClassHeaderBackgroundColor #3D6DB5
+skinparam ClassHeaderFontColor white
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam InterfaceBackgroundColor #E8EAF6
+skinparam InterfaceBorderColor #3949AB
+
+' ─────────────────────────────────────────────────────────
+' Entry Point
+' ─────────────────────────────────────────────────────────
+package "app (FastAPI Application Layer)" #F8F9FA {
+
+  class FastAPIApp <<FastAPI>> {
+    + title : String = "Movie Finder API"
+    + version : String
+    + lifespan : AsyncContextManager
+    --
+    + startup() : void
+    + shutdown() : void
+  }
+
+  note right of FastAPIApp
+    Lifespan initialises:
+    1. SessionStore.connect() → asyncpg pool
+    2. compile_graph() → LangGraph CompiledGraph
+    Both stored as app.state singletons.
+  end note
+
+  ' ─────────────────────────────────────────────────────
+  ' Configuration
+  ' ─────────────────────────────────────────────────────
+  package "Configuration" #EEF2FF {
+    class AppConfig <<PydanticSettings>> {
+      + database_url : String
+      + app_secret_key : String
+      + jwt_algorithm : String = "HS256"
+      + access_token_expire_minutes : Integer = 30
+      + refresh_token_expire_days : Integer = 7
+      + classifier_model : String
+      + reasoning_model : String
+      + embedding_model : String
+      + qdrant_endpoint : String
+      + qdrant_api_key : String
+      + qdrant_collection : String
+    }
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Authentication Layer
+  ' ─────────────────────────────────────────────────────
+  package "Auth Layer" #FFF8F0 {
+
+    class AuthRouter <<FastAPIRouter>> {
+      + prefix : String = "/auth"
+      --
+      + register(email, password) : TokenPair
+      + login(email, password) : TokenPair
+      + refresh(refresh_token) : TokenPair
+      + logout(user : User) : void
+    }
+
+    class JWTMiddleware <<FastAPIDependency>> {
+      - secret_key : String
+      - algorithm : String = "HS256"
+      --
+      + create_access_token(data : dict) : String
+      + create_refresh_token(data : dict) : String
+      + decode_token(token : String) : dict
+      + get_current_user(token : String) : UserInDB
+    }
+
+    note bottom of JWTMiddleware
+      ⚠ Issue #12: get_current_user returns
+      UserInDB which exposes hashed_password
+      through the entire dependency chain.
+      Should return a safe User DTO instead.
+    end note
+
+    class UserInDB <<PydanticModel>> {
+      + id : String
+      + email : String
+      - hashed_password : String
+      + created_at : String
+    }
+
+    class TokenPair <<PydanticModel>> {
+      + access_token : String
+      + refresh_token : String
+      + token_type : String = "bearer"
+    }
+
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Chat / Session Layer
+  ' ─────────────────────────────────────────────────────
+  package "Chat Layer" #F0F4FF {
+
+    class ChatRouter <<FastAPIRouter>> {
+      + prefix : String = "/chat"
+      --
+      + chat(session_id, message, user) : StreamingResponse
+      + get_sessions(user) : List<SessionSummary>
+      + get_history(session_id, user) : List<Message>
+      + delete_session(session_id, user) : void
+    }
+
+    note right of ChatRouter
+      ⚠ Issue #9: CORS middleware missing —
+      cross-origin requests blocked in prod.
+      ⚠ Issue #4: no rate limiting; endpoint
+      open to abuse / DoS.
+      ⚠ Issue #13: no input length validation
+      on the message field.
+      ⚠ Issue #11: get_sessions has no
+      pagination support.
+    end note
+
+    class ChatRequest <<PydanticModel>> {
+      + session_id : String
+      + message : String
+    }
+
+    class SessionSummary <<PydanticModel>> {
+      + session_id : String
+      + phase : String
+      + updated_at : String
+      + first_message : String
+      + confirmed_movie : Dict
+    }
+
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Persistence Layer
+  ' ─────────────────────────────────────────────────────
+  package "Session / Persistence Layer" #F0FFF4 {
+
+    class SessionStore <<asyncpgPool>> {
+      - _database_url : String
+      - _pool : asyncpg.Pool
+      --
+      + connect() : void
+      + close() : void
+      + create_user(email, hashed_pw) : UserInDB
+      + get_user_by_email(email) : UserInDB
+      + get_or_create_session(session_id, user_id) : ChatSession
+      + save_message(session_id, role, content) : void
+      + get_session_history(session_id) : List<Message>
+      + update_session(session_id, phase, confirmed_movie) : void
+      + list_sessions(user_id) : List<SessionSummary>
+      + delete_session(session_id) : void
+    }
+
+    note right of SessionStore
+      Manages 3 PostgreSQL tables:
+      • users (id, email, hashed_password, created_at)
+      • sessions (session_id, user_id, title, phase,
+        confirmed_movie TEXT, created_at, updated_at)
+      • messages (id, session_id, role, content, created_at)
+
+      ⚠ Issue #3: schema managed by raw DDL at startup.
+      No Alembic migrations, no DB indexes defined.
+      ⚠ Issue #10: confirmed_movie stored as TEXT,
+      should be JSONB for server-side filtering.
+    end note
+
+  }
+
+  ' ─────────────────────────────────────────────────────
+  ' Dependency Injection
+  ' ─────────────────────────────────────────────────────
+  package "Dependencies (DI)" #F3E5F5 {
+    class Dependencies <<FastAPIDepends>> {
+      + get_store(request) : SessionStore
+      + get_graph(request) : CompiledStateGraph
+      + get_current_user(token, store) : UserInDB
+    }
+  }
+
+}
+
+' ─────────────────────────────────────────────────────────
+' External interfaces (stubs)
+' ─────────────────────────────────────────────────────────
+package "External Interfaces" #ECEFF1 {
+  interface ILangGraphChain {
+    + stream_events(message, history, phase) : AsyncIterator<SSEEvent>
+  }
+  interface IPostgreSQL {
+    + execute(sql, *args) : void
+    + fetch(sql, *args) : List<Record>
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' Relationships
+' ─────────────────────────────────────────────────────────
+FastAPIApp --> AppConfig : reads config >
+FastAPIApp --> SessionStore : initialises & owns (app.state)
+FastAPIApp --> ILangGraphChain : compiles & owns (app.state)
+FastAPIApp --> AuthRouter : mounts
+FastAPIApp --> ChatRouter : mounts
+
+AuthRouter --> JWTMiddleware : depends on (get_current_user for /logout)
+AuthRouter --> SessionStore : create_user / get_user_by_email
+AuthRouter ..> TokenPair : returns
+AuthRouter ..> UserInDB : operates on
+
+ChatRouter --> JWTMiddleware : depends on (all endpoints)
+ChatRouter --> SessionStore : session & message CRUD
+ChatRouter --> ILangGraphChain : stream_events
+ChatRouter ..> ChatRequest : consumes
+ChatRouter ..> SessionSummary : returns
+
+JWTMiddleware ..> UserInDB : returns
+Dependencies --> SessionStore : provides via app.state
+Dependencies --> ILangGraphChain : provides via app.state
+Dependencies --> JWTMiddleware : delegates token validation
+
+SessionStore --> IPostgreSQL : queries
+
+@enduml

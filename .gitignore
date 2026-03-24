@@ -26,6 +26,12 @@ services/rag-ingestion.md
 architecture/workspace.json
 architecture/.structurizr/
 
+# ── PlantUML rendered outputs ─────────────────────────────────────────────────
+# PNGs are generated at doc-build time by scripts/prepare-docs.sh.
+# Source of truth is the *.puml files, which ARE committed.
+# Regenerate with: plantuml -png docs/architecture/plantuml/*.puml
+architecture/plantuml/*.png
+
 # ── OS ───────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db

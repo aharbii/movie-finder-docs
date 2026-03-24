@@ -1,21 +1,47 @@
 ---
 title: Architecture
-description: Movie Finder system architecture — C4 model, diagrams, and decisions
+description: Movie Finder system architecture — C4 model, PlantUML diagrams, and architecture decision records
 ---
 
 # Architecture
 
-This section documents the Movie Finder architecture using [C4 model](https://c4model.com/) diagrams (Structurizr DSL) and UML class/sequence diagrams (StarUML).
+This section documents the Movie Finder architecture at multiple levels of detail.
+
+| File / Section | Format | Purpose |
+|---|---|---|
+| [`workspace.dsl`](workspace.dsl) | Structurizr DSL (C4) | L1 System Context · L2 Containers · L3 Components · Deployment |
+| [PlantUML Diagrams](plantuml/index.md) | PlantUML (`.puml`) | Class · Component · Sequence · State · Deployment diagrams |
+| [`decisions/`](decisions/index.md) | Markdown ADRs | Architecture decision records |
 
 ---
 
-## Files in this section
+## How to render diagrams
 
-| File | Format | How to open |
-|------|--------|-------------|
-| [`workspace.dsl`](workspace.dsl) | Structurizr DSL | `docker compose --profile docs up structurizr` → [localhost:8080](http://localhost:8080) |
-| [`architecture.mdj`](architecture.mdj) | StarUML JSON | StarUML desktop → File → Open |
-| [`decisions/`](decisions/index.md) | Markdown ADRs | Read directly in GitHub or MkDocs |
+=== "PlantUML (UML diagrams)"
+
+    ```bash
+    # Prerequisite — install once
+    brew install plantuml graphviz        # macOS
+    sudo apt install plantuml graphviz    # Ubuntu/Debian
+
+    # Render all 10 diagrams to PNG
+    plantuml -png docs/architecture/plantuml/*.puml
+
+    # Or let the doc-prep script handle it
+    ./scripts/prepare-docs.sh
+    ```
+
+    **VS Code:** open any `.puml` and press `Option+D` / `Alt+D` for live preview
+    (requires the **jebbs.plantuml** extension, pre-configured in `.vscode/settings.json`).
+
+=== "Structurizr (C4 model)"
+
+    ```bash
+    docker compose --profile docs up structurizr
+    # → http://localhost:8080
+    ```
+
+    Navigate between: **System Context · Containers · Components · Deployment (Azure / Local)**
 
 ---
 
@@ -31,48 +57,45 @@ User ──────────────►│  Angular SPA  ←→  Fast
                     │               │        │        │         │
                     └───────────────┼────────┼────────┼─────────┘
                                     │        │        │
-                               Qdrant  Anthropic   OpenAI
-                               Cloud   Claude API  Embeddings
+                               Qdrant   Anthropic  OpenAI
+                               Cloud    Claude API Embeddings
                                     │
                                imdbapi.dev
-                               (unauthenticated)
 ```
 
-**External systems:**
-
-| System | Purpose | Auth |
-|--------|---------|------|
+| External System | Purpose | Auth |
+|---|---|---|
 | Qdrant Cloud | Vector similarity search over movie corpus | API key |
-| Anthropic Claude | LLM for chain (Haiku: classification, Sonnet: Q&A) | API key |
+| Anthropic Claude | Haiku: classification · Sonnet: refinement + Q&A | API key |
 | OpenAI | `text-embedding-3-large` at query time and ingestion | API key |
 | imdbapi.dev | Live IMDb metadata — ratings, posters, credits | None |
-| Azure Key Vault | Runtime secrets injection via managed identity | Managed identity |
+| Azure Key Vault | Runtime secrets via managed identity | Managed identity |
 
 ---
 
 ## Container diagram (L2)
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│                       Movie Finder System                           │
-│                                                                     │
-│  ┌─────────────────┐         ┌──────────────────────────────────┐  │
-│  │  Angular SPA     │  REST   │         FastAPI Backend           │  │
-│  │  TypeScript 5.9  ├────────►│  Python 3.13 + LangGraph         │  │
-│  │  nginx (prod)    │   SSE   │  Port 8000                       │  │
-│  │  Port 80         │◄────────┤                                  │  │
-│  └─────────────────┘         └──────────┬───────────────────────┘  │
-│                                         │ asyncpg                   │
-│                               ┌─────────▼──────────────────────┐  │
-│                               │  PostgreSQL 16                  │  │
-│                               │  Users / Sessions / Messages    │  │
-│                               └────────────────────────────────┘  │
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  RAG Ingestion Pipeline (offline / manual)                    │  │
-│  │  Kaggle dataset → OpenAI embeds → Qdrant Cloud upsert         │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                       Movie Finder System                             │
+│                                                                       │
+│  ┌─────────────────┐          ┌──────────────────────────────────┐   │
+│  │  Angular SPA     │  REST    │       FastAPI Backend             │   │
+│  │  TypeScript 5.9  ├─────────►  Python 3.13 + LangGraph          │   │
+│  │  nginx (prod)    │   SSE    │  Port 8000                       │   │
+│  │  Port 80         │◄─────────┤                                  │   │
+│  └─────────────────┘          └────────────┬─────────────────────┘   │
+│                                            │ asyncpg                  │
+│                                ┌───────────▼──────────────────────┐  │
+│                                │  PostgreSQL 16                   │  │
+│                                │  users · sessions · messages     │  │
+│                                └──────────────────────────────────┘  │
+│                                                                       │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  RAG Ingestion Pipeline  (offline / manual)                     │  │
+│  │  Kaggle dataset → OpenAI embeddings → Qdrant Cloud upsert       │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -81,57 +104,42 @@ User ──────────────►│  Angular SPA  ←→  Fast
 
 ```
 FastAPI Backend
-├── Auth Router          POST /auth/register, /login, /refresh
-│   └── JWT Middleware   validates Bearer tokens, returns user_id
-├── Chat Router          POST /chat (SSE), GET sessions/history, DELETE session
-│   ├── Session Store    asyncpg — users, sessions, messages → PostgreSQL
+├── Auth Router          POST /auth/register, /login, /refresh, /logout
+│   └── JWT Middleware   validates Bearer tokens · issues HS256 JWT pairs
+├── Chat Router          POST /chat (SSE) · GET sessions/history · DELETE session
+│   ├── Session Store    asyncpg pool → PostgreSQL
 │   └── LangGraph Chain
-│       ├── RAG Search Node    → RAG Service → Qdrant Cloud
-│       │                                    → OpenAI (embed query)
-│       ├── IMDb Enrichment    → IMDb API Client → imdbapi.dev
-│       ├── Validation Node    (dedup, confidence filter)
-│       ├── Presentation Node  (rank, format candidates)
-│       ├── Confirmation Node  (await user pick)
-│       ├── Q&A Agent Node     → Anthropic Claude Sonnet
-│       ├── Refinement Node    (rebuild query, max 3 cycles)
-│       └── Dead-End Node      (no matches after max cycles)
-└── Health               GET /health  →  {"status": "ok"}
+│       ├── RAG Search Node      → RAG Service → Qdrant + OpenAI (embed)
+│       ├── IMDb Enrichment Node → IMDb API Client → imdbapi.dev (async parallel)
+│       ├── Validation Node      (dedup, confidence filter ≥ threshold)
+│       ├── Presentation Node    (rank, format candidates for user)
+│       ├── Confirmation Node    → Claude Haiku (classify intent)
+│       ├── Refinement Node      → Claude Sonnet (extract plot details, max 3×)
+│       ├── Q&A Agent Node       → Claude Sonnet + ReAct + IMDb tools
+│       └── Dead-End Node        (graceful exit after 3 refinement cycles)
+└── Health               GET /health → {"status": "ok"}
 ```
 
 ---
 
-## LangGraph pipeline — state machine
+## LangGraph pipeline — phase state machine
 
 ```
-        ┌──────────────────────────────────────────────────────────┐
-        │                     Entry Point                           │
-        └──────────────────────┬───────────────────────────────────┘
-                               │
-                        [RAG Search]
-                     embed query → Qdrant top-K
-                               │
-                     [IMDb Enrichment]
-                     fetch live metadata per candidate
-                               │
-                       [Validation]
-                    dedup · filter (confidence < threshold)
-                         /               \
-            candidates found           no confident candidates
-                  │                    OR user rejection
-           [Presentation]                    │
-          rank + format list           [Refinement] ◄── cycle 1, 2, 3
-                  │                         │
-          stream to user →         max cycles reached?
-          wait for next turn              │  Yes
-                  │                  [Dead-End]
-           [Confirmation]
-         user picks a movie
-                  │
-           [Q&A Agent]
-        Claude Sonnet answers
-        any follow-up question
-        (no token streaming —
-         full reply in done event)
+[Entry]
+   │
+[RAG Search] ── embed query → Qdrant top-K
+   │
+[IMDb Enrichment] ── async parallel metadata fetch per candidate
+   │
+[Validation] ── dedup · filter by confidence
+   ├── candidates found ──► [Presentation] ──► stream to user ──► [Confirmation]
+   │                                                                    │
+   │                                                          ┌─────────┴──────────┐
+   │                                                     confirmed           refine / exhausted
+   │                                                          │                    │
+   │                                                     [Q&A Agent]        [Refinement] ──► loop ≤ 3×
+   │                                                                               │
+   └── no candidates ──────────────────────────────────────► [Dead-End]
 ```
 
 ---
@@ -140,50 +148,40 @@ FastAPI Backend
 
 ```
 GitHub ──webhook──► Jenkins (Ubuntu + ngrok)
-                          │
-                    ┌─────▼───────────────────┐
-                    │  Azure Container Registry │
-                    │  :sha8  :latest  :v1.2.3  │
-                    └─────┬───────────────────-┘
-                          │  az containerapp update
-              ┌───────────┼────────────────────────────────────┐
-              │      Azure Container Apps Environment           │
-              │                                                 │
-              │  movie-finder-frontend  movie-finder-backend    │
-              │  nginx + Angular SPA    FastAPI + LangGraph     │
-              │  min=1 max=5            min=1 max=4             │
-              │  Port 80                Port 8000               │
-              │           │                                     │
-              │           └──► Azure PostgreSQL Flexible Server │
-              └─────────────────────────────────────────────────┘
-              │
-              ├── Azure Key Vault (secrets → backend via managed identity)
-              └── Qdrant Cloud (external — no container)
+                          │ docker push
+                    ┌─────▼─────────────────────────┐
+                    │  Azure Container Registry      │
+                    │  :sha8 · :latest · :v1.2.3     │
+                    └─────┬─────────────────────────┘
+                          │ az containerapp update
+         ┌────────────────▼───────────────────────────────────────┐
+         │         Azure Container Apps Environment                │
+         │                                                         │
+         │  movie-finder-frontend      ca-movie-finder             │
+         │  nginx + Angular SPA        FastAPI + LangGraph         │
+         │  min=1 max=5 replicas       min=1 max=4 replicas        │
+         │                    │                                    │
+         │                    └──► Azure PostgreSQL Flexible Server│
+         └────────────────────────────────────────────────────────┘
+              │                   │                    │
+         Azure Key Vault     Qdrant Cloud        imdbapi.dev
+         (secrets via        (external —         (unauthenticated)
+          managed identity)   no container)
 ```
 
 ---
 
-## Rendering these diagrams
+## Open architectural issues
 
-### Structurizr (C4 interactive)
+The most impactful known issues affecting this architecture:
 
-```bash
-# Start via docker compose (docs profile)
-docker compose --profile docs up structurizr
+| # | Issue | Severity |
+|---|---|---|
+| [#2](https://github.com/aharbii/movie-finder/issues/2) | `MemorySaver` non-persistent — breaks multi-replica deployments | **Critical** |
+| [#3](https://github.com/aharbii/movie-finder/issues/3) | Schema managed by raw DDL — no Alembic migrations, no indexes | **Critical** |
+| [#4](https://github.com/aharbii/movie-finder/issues/4) | No rate limiting on any API endpoint | **High** |
+| [#5](https://github.com/aharbii/movie-finder/issues/5) | Refresh tokens cannot be revoked | **High** |
+| [#7](https://github.com/aharbii/movie-finder/issues/7) | OpenAI + Qdrant clients re-created on every LangGraph node invocation | **High** |
+| [#8](https://github.com/aharbii/movie-finder/issues/8) | IMDb retry base delay 30 s — blocks SSE stream | **High** |
 
-# Open http://localhost:8080
-# Navigate between: System Context · Containers · Components · Deployment
-```
-
-### StarUML (class + sequence diagrams)
-
-```bash
-# 1. Install StarUML: https://staruml.io
-# 2. File → Open → docs/architecture/architecture.mdj
-```
-
-The StarUML model contains:
-- **Domain Class Diagram** — User, ChatSession, Message, MovieCandidate, ConfirmedMovie, TokenPair
-- **Sequence: Auth Flow** — register / login / refresh
-- **Sequence: Chat SSE** — fetch → JWT validate → chain → SSE stream → persist
-- **Sequence: LangGraph Chain** — full node execution with refinement cycles
+See the [PlantUML diagrams](plantuml/index.md) for a full annotated view of all issues in context.

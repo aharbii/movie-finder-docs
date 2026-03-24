@@ -1,0 +1,165 @@
+@startuml 10-deployment-azure
+title Movie Finder — Production Deployment (Azure)
+
+skinparam backgroundColor white
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam ArrowColor #555555
+skinparam ArrowFontSize 11
+skinparam NodeBackgroundColor #E8F5E9
+skinparam NodeBorderColor #2E7D32
+skinparam NodeFontSize 13
+skinparam DatabaseBackgroundColor #E3F2FD
+skinparam DatabaseBorderColor #1565C0
+skinparam ArtifactBackgroundColor #FFF8E1
+skinparam ArtifactBorderColor #F57F17
+skinparam CloudBackgroundColor #F3E5F5
+skinparam CloudBorderColor #6A1B9A
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+
+' ═══════════════════════════════════════════════════════
+' Developer Workstation / CI
+' ═══════════════════════════════════════════════════════
+package "CI/CD Pipeline" #FFF8F0 {
+
+  node "Jenkins Server\n(Ubuntu + ngrok)" as jenkins {
+    artifact "Jenkinsfile\n(backend)" as jf_be
+    artifact "Jenkinsfile\n(frontend)" as jf_fe
+  }
+
+  note right of jenkins
+    Multibranch Pipelines.
+    Stages: lint → test → build → deploy
+    Tags (v*): manual approval gate for prod.
+    ⚠ Issue #17: ngrok tunnel for webhooks
+    ⚠ Issue #21: candidate for GitHub Actions
+  end note
+
+}
+
+' ═══════════════════════════════════════════════════════
+' Azure Cloud
+' ═══════════════════════════════════════════════════════
+package "Microsoft Azure" #E8F5E9 {
+
+  node "Azure Container Registry (ACR)" as acr {
+    artifact "movie-finder-backend\n:sha8 / :latest / :v*" as img_be
+    artifact "movie-finder-frontend\n:sha8 / :latest / :v*" as img_fe
+  }
+
+  note right of acr
+    Private Docker registry.
+    Images tagged per commit SHA,
+    :latest (main), and :v* (releases).
+  end note
+
+  node "Azure Key Vault" as akv {
+    artifact "DB_PASSWORD\nAPP_SECRET_KEY\nANTHROPIC_API_KEY\nOPENAI_API_KEY\nQDRANT_API_KEY\nJWT_ALGORITHM\n..." as secrets
+  }
+
+  note right of akv
+    Secrets injected into backend
+    Container App at startup via
+    Managed Identity (no hard-coded creds).
+  end note
+
+  package "Azure Container Apps Environment\n(Shared network — frontend ↔ backend)" #DCEDC8 {
+
+    node "movie-finder-frontend\nContainer App\n(min=1, max=5 replicas)" as fe_app {
+      artifact "nginx:stable-alpine\n+ Angular bundle" as fe_img
+    }
+
+    node "ca-movie-finder\nContainer App\n(min=1, max=4 replicas)" as be_app {
+      artifact "python:3.13-slim\n+ FastAPI + LangGraph" as be_img
+
+      note right of be_app
+        ⚠ Issue #2: MemorySaver is in-process.
+        Multi-replica deployment will lose
+        LangGraph state between replicas.
+        Fix: PostgresSaver / RedisSaver
+        ⚠ Issue #9: CORS middleware missing
+      end note
+    }
+
+  }
+
+  database "Azure Database for\nPostgreSQL Flexible Server\n(PostgreSQL 16)" as az_pg {
+    artifact "users\nsessions\nmessages" as pg_tables
+  }
+
+  note bottom of az_pg
+    Accessible only from within the
+    Container Apps environment network.
+    ⚠ Issue #3: schema via raw DDL at
+    startup — no Alembic migrations,
+    no indexes defined.
+    ⚠ Issue #10: confirmed_movie TEXT
+    (should be JSONB)
+  end note
+
+}
+
+' ═══════════════════════════════════════════════════════
+' External Services
+' ═══════════════════════════════════════════════════════
+cloud "Qdrant Cloud\n(Vector Database)\n3072-dim movie embeddings" as qdrant
+
+note bottom of qdrant
+  ⚠ Issue #14: single cluster shared
+  across ALL environments (dev/staging/prod).
+  No environment isolation.
+end note
+
+cloud "OpenAI API\ntext-embedding-3-large" as openai
+cloud "Anthropic Claude API\nHaiku (classify) + Sonnet (reason)" as anthropic
+cloud "imdbapi.dev\n(IMDb Metadata)" as imdbapi
+
+' ═══════════════════════════════════════════════════════
+' Local Development (reference)
+' ═══════════════════════════════════════════════════════
+package "Local Development\n(docker compose)" #F0F4FF {
+  node "docker-compose\n(developer workstation)" as local_dc {
+    artifact "movie-finder-frontend container\nnginx:stable-alpine · port 80" as local_fe
+    artifact "movie-finder-backend container\npython:3.13-slim · port 8000" as local_be
+    database "movie-finder-postgres container\npostgres:16-alpine · port 5432" as local_pg
+  }
+  note right of local_dc
+    Qdrant is NOT included in docker compose.
+    The same production Qdrant cluster
+    is used in all environments.
+  end note
+}
+
+' ═══════════════════════════════════════════════════════
+' Relationships — CI/CD
+' ═══════════════════════════════════════════════════════
+jenkins --> acr : docker push\n(:sha8 on merge, :v* on tag)
+jf_be --> img_be : builds & pushes
+jf_fe --> img_fe : builds & pushes
+
+' ═══════════════════════════════════════════════════════
+' Relationships — Azure Infra
+' ═══════════════════════════════════════════════════════
+acr --> fe_app : pull image on deploy
+acr --> be_app : pull image on deploy
+akv --> be_app : inject secrets at startup\n(Managed Identity)
+
+fe_app --> be_app : HTTPS /api\n(within Container Apps VNet)
+
+be_app --> az_pg : asyncpg · TCP 5432
+be_app --> qdrant : HTTPS (qdrant-client)
+be_app --> openai : HTTPS (openai SDK)
+be_app --> anthropic : HTTPS (langchain-anthropic)
+be_app --> imdbapi : HTTPS (httpx)
+
+' ═══════════════════════════════════════════════════════
+' Relationships — Local Dev
+' ═══════════════════════════════════════════════════════
+local_fe --> local_be : HTTP /api\n(nginx proxy)
+local_be --> local_pg : asyncpg
+local_be ..> qdrant : same prod cluster\n(no local instance)
+
+@enduml

@@ -1,0 +1,200 @@
+@startuml 09-seq-langgraph-execution
+title Movie Finder — LangGraph Pipeline Execution (Sequence Diagram)
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam sequenceArrowFontSize 11
+skinparam sequenceParticipantFontSize 12
+skinparam sequenceLifeLineBorderColor #6A1B9A
+skinparam sequenceParticipantBackgroundColor #F3E5F5
+skinparam sequenceParticipantBorderColor #6A1B9A
+skinparam sequenceActorBackgroundColor #FFF9C4
+skinparam sequenceActorBorderColor #F57F17
+skinparam sequenceDividerBackgroundColor #EDE7F6
+skinparam sequenceDividerBorderColor #6A1B9A
+skinparam sequenceDividerFontColor #311B92
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam ArrowColor #555555
+
+participant "Chat Router\n(FastAPI)" as router
+participant "RAG Search\nNode" as rag
+participant "IMDb Enrichment\nNode" as imdb
+participant "Validation\nNode" as val
+participant "Presentation\nNode" as pres
+participant "Confirmation\nNode\n(Claude Haiku)" as conf
+participant "Refinement\nNode\n(Claude Sonnet)" as ref
+participant "Q&A Agent\nNode\n(Claude Sonnet)" as qa
+participant "Dead-End\nNode" as dead
+participant "Qdrant Cloud" as qdrant
+participant "imdbapi.dev" as imdbapi
+participant "OpenAI API" as openai
+participant "Anthropic API" as anthropic
+
+' ═══════════════════════════════════════════════════════
+== GRAPH ENTRY: Discovery Phase ==
+' ═══════════════════════════════════════════════════════
+
+router -> rag : ainvoke(state)\n[phase="discovery"]
+activate rag
+
+note right of rag
+  ⚠ Issue #7: MovieSearchService
+  (OpenAI client + QdrantClient)
+  re-created on every invocation.
+  Should be singleton injected via
+  graph config or app.state.
+end note
+
+rag -> openai : POST /embeddings\n{model: "text-embedding-3-large",\n input: user_plot_query}
+activate openai
+openai --> rag : embedding vector [3072 dims]
+deactivate openai
+
+rag -> qdrant : POST /collections/{name}/points/search\n{vector, top=K, with_payload=true}
+activate qdrant
+qdrant --> rag : [{id, score, payload: {title, year, plot, ...}}]
+deactivate qdrant
+
+rag --> imdb : state.rag_candidates = [{title, year, imdb_id, score}]
+deactivate rag
+
+' ─────────────────────────────────────────────────────────
+activate imdb
+
+note right of imdb
+  Launches async tasks in parallel
+  (one per candidate).
+  ⚠ Issue #16: stagger delay between
+  requests adds latency unnecessarily.
+  ⚠ Issue #8: retry base delay = 30 s
+  blocks the SSE stream on IMDb errors.
+end note
+
+par Parallel IMDb lookups (one per RAG candidate)
+  imdb -> imdbapi : GET /search?query={title+year}
+  activate imdbapi
+  imdbapi --> imdb : [{imdbID, name, image, year, ...}]
+  deactivate imdbapi
+
+  imdb -> imdbapi : GET /titles/{imdbID}
+  activate imdbapi
+  imdbapi --> imdb : {imdbID, rating, plot, genres,\n directors, stars, posterUrl}
+  deactivate imdbapi
+end
+
+imdb -> imdb : merge RAG metadata + IMDb metadata\ncompute confidence score per candidate
+
+imdb --> val : state.enriched_movies = [{...merged, confidence}]
+deactivate imdb
+
+' ─────────────────────────────────────────────────────────
+activate val
+
+val -> val : deduplicate by imdb_id\nfilter confidence ≥ threshold\nsort descending by confidence
+
+alt candidates found (confidence ≥ threshold)
+  val --> pres : state with filtered enriched_movies
+  deactivate val
+
+  activate pres
+  pres -> pres : format movie list as\nnatural-language AI message
+  pres --> conf : state.phase = "confirmation"\nstate.messages += [AIMessage(formatted_list)]
+  deactivate pres
+
+else no confident candidates
+  val --> ref : state (refinement_count unchanged)
+  deactivate val
+  note over ref
+    Jump to REFINEMENT PHASE
+    (shown below)
+  end note
+end
+
+' ═══════════════════════════════════════════════════════
+== CONFIRMATION PHASE (next user message) ==
+' ═══════════════════════════════════════════════════════
+
+router -> conf : ainvoke(state)\n[phase="confirmation"]
+activate conf
+
+conf -> anthropic : POST /messages\n{model: "claude-haiku-*",\n system: classification_prompt,\n messages: conversation_history}
+activate anthropic
+anthropic --> conf : {"next_action": "confirmed"|"refine"|"wait"|"exhausted"}
+deactivate anthropic
+
+alt next_action = "confirmed"
+  conf --> qa : state.confirmed_movie_id\nstate.confirmed_movie_title\nstate.confirmed_movie_data\nstate.phase = "qa"
+  deactivate conf
+
+  ' ═══════════════════════════════════════════════════
+  == Q&A PHASE ==
+  ' ═══════════════════════════════════════════════════
+
+  activate qa
+  loop ReAct loop (tool use)
+    qa -> anthropic : POST /messages\n{model: "claude-sonnet-*",\n tools: [search_titles, get_title],\n messages: [...]}
+    activate anthropic
+    anthropic --> qa : tool_call: {name, input}  OR  final text
+    deactivate anthropic
+
+    alt tool call
+      qa -> imdbapi : GET /search  OR  GET /titles/{id}
+      activate imdbapi
+      imdbapi --> qa : metadata
+      deactivate imdbapi
+      qa -> qa : append tool_result to messages
+    end
+  end
+  qa --> router : stream tokens + final answer
+  deactivate qa
+
+else next_action = "wait"
+  conf --> router : re-present candidates or clarify
+  deactivate conf
+
+else next_action = "refine"
+  conf --> ref : state (phase stays "confirmation")
+  deactivate conf
+end
+
+' ═══════════════════════════════════════════════════════
+== REFINEMENT CYCLE (up to 3×) ==
+' ═══════════════════════════════════════════════════════
+
+activate ref
+
+ref -> ref : refinement_count += 1
+
+alt refinement_count ≤ 3
+  ref -> anthropic : POST /messages\n{model: "claude-sonnet-*",\n system: refinement_prompt,\n messages: conversation_history}
+  activate anthropic
+  anthropic --> ref : refined_query string
+  deactivate anthropic
+
+  ref -> ref : state.user_plot_query = refined_query\nstate.phase = "discovery"
+  ref --> rag : loop back to RAG Search\n(refined query, new cycle)
+  deactivate ref
+  note over rag
+    Second (or third) RAG search cycle
+    with more specific query.
+  end note
+
+else refinement_count > 3
+  ref --> dead : state.next_action = "exhausted"
+  deactivate ref
+
+  ' ═══════════════════════════════════════════════════
+  == DEAD-END ==
+  ' ═══════════════════════════════════════════════════
+  activate dead
+  dead -> anthropic : POST /messages\n{model: "claude-*",\n system: dead_end_prompt, ...}
+  activate anthropic
+  anthropic --> dead : graceful exit message
+  deactivate anthropic
+  dead --> router : stream "couldn't find your movie" message
+  deactivate dead
+end
+
+@enduml

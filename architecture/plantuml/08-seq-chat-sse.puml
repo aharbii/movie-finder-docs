@@ -1,0 +1,146 @@
+@startuml 08-seq-chat-sse
+title Movie Finder — Chat & SSE Streaming Flow (Sequence Diagram)
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam sequenceArrowFontSize 11
+skinparam sequenceParticipantFontSize 13
+skinparam sequenceLifeLineBorderColor #388E3C
+skinparam sequenceParticipantBackgroundColor #E8F5E9
+skinparam sequenceParticipantBorderColor #388E3C
+skinparam sequenceActorBackgroundColor #FFF9C4
+skinparam sequenceActorBorderColor #F57F17
+skinparam sequenceDividerBackgroundColor #E0F2F1
+skinparam sequenceDividerBorderColor #00897B
+skinparam sequenceDividerFontColor #004D40
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam ArrowColor #555555
+
+actor "Browser\n(Angular)" as browser
+participant "Auth\nInterceptor" as interceptor
+participant "Chat Router\n(FastAPI)" as chat_router
+participant "JWT\nMiddleware" as jwt_mw
+participant "Session Store\n(asyncpg)" as store
+participant "LangGraph Chain\n(CompiledStateGraph)" as chain
+database "PostgreSQL" as pg
+
+' ═══════════════════════════════════════════════════════
+== SETUP: Client generates session ID ==
+' ═══════════════════════════════════════════════════════
+
+note over browser
+  Client generates UUID v4 as session_id.
+  New ChatSession created automatically
+  on first message via get_or_create_session().
+end note
+
+' ═══════════════════════════════════════════════════════
+== SEND MESSAGE (POST /chat) ==
+' ═══════════════════════════════════════════════════════
+
+browser -> interceptor : fetch("POST /api/chat",\n{session_id, message})
+activate interceptor
+
+interceptor -> interceptor : inject Authorization: Bearer <access_token>
+interceptor -> chat_router : POST /api/chat\n{session_id, message}\nAuthorization: Bearer <token>
+activate chat_router
+deactivate interceptor
+
+chat_router -> jwt_mw : get_current_user(Bearer token)
+activate jwt_mw
+
+alt token valid
+  jwt_mw --> chat_router : UserInDB (user_id)
+  deactivate jwt_mw
+else token invalid / expired
+  jwt_mw --> browser : 401 Unauthorized
+  deactivate jwt_mw
+end
+
+note right of chat_router
+  ⚠ Issue #9: no CORS middleware —
+  pre-flight OPTIONS blocked in prod.
+  ⚠ Issue #4: no rate limiting.
+  ⚠ Issue #13: message field has no
+  max length validation.
+end note
+
+chat_router -> store : get_or_create_session(\n  session_id, user_id\n)
+activate store
+store -> pg : SELECT / INSERT INTO sessions
+activate pg
+pg --> store : ChatSession row
+deactivate pg
+store --> chat_router : ChatSession {session_id, phase, confirmed_movie}
+deactivate store
+
+chat_router -> store : get_session_history(session_id)
+activate store
+store -> pg : SELECT * FROM messages WHERE session_id = $1
+activate pg
+pg --> store : message rows []
+deactivate pg
+store --> chat_router : List<Message>
+deactivate store
+
+chat_router -> store : save_message(\n  session_id, role="user", content=message\n)
+activate store
+store -> pg : INSERT INTO messages
+pg --> store : ok
+deactivate store
+
+' ═══════════════════════════════════════════════════════
+== STREAM: LangGraph pipeline via SSE ==
+' ═══════════════════════════════════════════════════════
+
+chat_router -> chain : stream_events(\n  input={messages, phase, confirmed_movie},\n  config={thread_id: session_id}\n)
+activate chain
+
+note over chat_router, chain
+  FastAPI returns StreamingResponse with
+  Content-Type: text/event-stream
+  Each yielded chunk is one SSE frame.
+end note
+
+loop for each LLM token from user-facing nodes\n(presentation, qa_agent, dead_end, refinement)
+  chain --> browser : data: {"type": "token", "content": "<token>"}\n\n
+end
+
+chain --> browser : data: {"type": "done",\n  "phase": "<new_phase>",\n  "session_id": "<id>",\n  "reply": "<full_text>",\n  "candidates": [...],       // discovery phase\n  "confirmed_movie": {...}   // confirmation phase\n}\n\n
+deactivate chain
+
+' ═══════════════════════════════════════════════════════
+== PERSIST: Save response and update session ==
+' ═══════════════════════════════════════════════════════
+
+chat_router -> store : save_message(\n  session_id, role="assistant", content=reply\n)
+activate store
+store -> pg : INSERT INTO messages
+pg --> store : ok
+deactivate store
+
+chat_router -> store : update_session(\n  session_id,\n  phase=new_phase,\n  confirmed_movie=confirmed_movie_data\n)
+activate store
+store -> pg : UPDATE sessions\nSET phase=$1, confirmed_movie=$2\nWHERE session_id=$3
+activate pg
+pg --> store : ok
+deactivate pg
+deactivate store
+
+deactivate chat_router
+
+' ═══════════════════════════════════════════════════════
+== CLIENT: Handles SSE events ==
+' ═══════════════════════════════════════════════════════
+
+note over browser
+  Angular ChatService uses EventSource.
+  • "token" events → append to streaming bubble
+  • "done" event → finalise message, update phase,
+    render CandidateCards (if candidates),
+    render MoviePanel (if confirmed_movie)
+end note
+
+@enduml
