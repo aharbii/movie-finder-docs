@@ -1,0 +1,30 @@
+# =============================================================================
+# docs/ submodule .gitignore
+#
+# Generated pages are created at build time by scripts/prepare-docs.sh
+# (locally) or the GitHub Actions docs.yml workflow (CI).
+# They are NOT committed to this repository.
+# =============================================================================
+
+# ── MkDocs build output ──────────────────────────────────────────────────────
+../site/
+
+# ── Generated pages (sourced from submodule READMEs at build time) ───────────
+onboarding.md
+
+contributing/index.md
+contributing/backend.md
+contributing/frontend.md
+
+services/backend.md
+services/frontend.md
+services/chain.md
+services/imdbapi.md
+services/rag-ingestion.md
+
+# ── Structurizr Lite auto-generated workspace JSON ───────────────────────────
+architecture/workspace.json
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

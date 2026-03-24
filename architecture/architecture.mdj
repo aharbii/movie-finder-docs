@@ -1,0 +1,470 @@
+{
+  "_type": "Project",
+  "name": "Movie Finder Architecture",
+  "author": "Architecture Team",
+  "company": "Movie Finder Project",
+  "copyright": "",
+  "version": "1.0.0",
+  "description": "StarUML architecture model for Movie Finder. Contains: Class Diagram (domain model), Sequence Diagram - Authentication Flow, Sequence Diagram - Chat SSE Flow, Sequence Diagram - LangGraph Chain Execution.",
+  "ownedElements": [
+    {
+      "_type": "UMLModel",
+      "_id": "model-root",
+      "name": "Movie Finder",
+      "ownedElements": [
+
+        {
+          "_type": "UMLPackage",
+          "_id": "pkg-domain",
+          "name": "Domain Model",
+          "ownedElements": [
+
+            {
+              "_type": "UMLClass",
+              "_id": "cls-user",
+              "name": "User",
+              "documentation": "Registered application user. Passwords are stored as bcrypt hashes.",
+              "attributes": [
+                { "_type": "UMLAttribute", "name": "id", "type": "uuid", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "email", "type": "string", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "hashed_password", "type": "string", "visibility": "private" },
+                { "_type": "UMLAttribute", "name": "created_at", "type": "datetime", "visibility": "public" }
+              ],
+              "operations": [
+                { "_type": "UMLOperation", "name": "verify_password", "parameters": [{ "_type": "UMLParameter", "name": "plain_password", "type": "string" }], "returnType": "bool" }
+              ]
+            },
+
+            {
+              "_type": "UMLClass",
+              "_id": "cls-session",
+              "name": "ChatSession",
+              "documentation": "A conversation between a user and the Movie Finder AI. A session progresses through three phases: discovery, confirmation, qa.",
+              "attributes": [
+                { "_type": "UMLAttribute", "name": "session_id", "type": "uuid", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "user_id", "type": "uuid", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "phase", "type": "SessionPhase", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "confirmed_movie", "type": "ConfirmedMovie | null", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "created_at", "type": "datetime", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "updated_at", "type": "datetime", "visibility": "public" }
+              ]
+            },
+
+            {
+              "_type": "UMLClass",
+              "_id": "cls-message",
+              "name": "Message",
+              "documentation": "A single turn in a chat session. Role is either 'user' or 'assistant'.",
+              "attributes": [
+                { "_type": "UMLAttribute", "name": "id", "type": "uuid", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "session_id", "type": "uuid", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "role", "type": "MessageRole", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "content", "type": "string", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "created_at", "type": "datetime", "visibility": "public" }
+              ]
+            },
+
+            {
+              "_type": "UMLEnumeration",
+              "_id": "enum-phase",
+              "name": "SessionPhase",
+              "documentation": "The current state of the AI conversation pipeline.",
+              "literals": [
+                { "_type": "UMLEnumerationLiteral", "name": "discovery" },
+                { "_type": "UMLEnumerationLiteral", "name": "confirmation" },
+                { "_type": "UMLEnumerationLiteral", "name": "qa" }
+              ]
+            },
+
+            {
+              "_type": "UMLEnumeration",
+              "_id": "enum-role",
+              "name": "MessageRole",
+              "literals": [
+                { "_type": "UMLEnumerationLiteral", "name": "user" },
+                { "_type": "UMLEnumerationLiteral", "name": "assistant" }
+              ]
+            },
+
+            {
+              "_type": "UMLClass",
+              "_id": "cls-movie-candidate",
+              "name": "MovieCandidate",
+              "documentation": "A movie candidate returned by the RAG + IMDb enrichment pipeline. Shown to the user during the 'confirmation' phase.",
+              "attributes": [
+                { "_type": "UMLAttribute", "name": "rag_title", "type": "string", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_id", "type": "string", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_title", "type": "string | null", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_year", "type": "int | null", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_rating", "type": "float | null", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_poster_url", "type": "string | null", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "confidence", "type": "float", "visibility": "public", "documentation": "Blended score: 40% Qdrant cosine similarity + 60% IMDb title/year match. Range 0-1." }
+              ]
+            },
+
+            {
+              "_type": "UMLClass",
+              "_id": "cls-confirmed-movie",
+              "name": "ConfirmedMovie",
+              "documentation": "Fully enriched movie record stored once the user confirms their pick. Present on every Q&A phase SSE event.",
+              "attributes": [
+                { "_type": "UMLAttribute", "name": "imdb_id", "type": "string | null", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_title", "type": "string | null", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_year", "type": "int | null", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_rating", "type": "float | null", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_plot", "type": "string | null", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_genres", "type": "list[string]", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_directors", "type": "list[string]", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_stars", "type": "list[string]", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "imdb_poster_url", "type": "string | null", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "rag_title", "type": "string", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "rag_year", "type": "int", "visibility": "public" },
+                { "_type": "UMLAttribute", "name": "confidence", "type": "float", "visibility": "public" }
+              ]
+            },
+
+            {
+              "_type": "UMLClass",
+              "_id": "cls-token",
+              "name": "TokenPair",
+              "documentation": "JWT pair returned by /auth/register and /auth/login.",
+              "attributes": [
+                { "_type": "UMLAttribute", "name": "access_token", "type": "string", "visibility": "public", "documentation": "Short-lived JWT. TTL: 30 minutes. Algorithm: HS256." },
+                { "_type": "UMLAttribute", "name": "refresh_token", "type": "string", "visibility": "public", "documentation": "Long-lived token. TTL: 7 days." },
+                { "_type": "UMLAttribute", "name": "token_type", "type": "string", "visibility": "public", "documentation": "Always 'bearer'." }
+              ]
+            },
+
+            {
+              "_type": "UMLAssociation",
+              "_id": "assoc-user-session",
+              "name": "owns",
+              "end1": { "reference": "cls-user", "multiplicity": "1", "navigable": false },
+              "end2": { "reference": "cls-session", "multiplicity": "0..*", "navigable": true }
+            },
+
+            {
+              "_type": "UMLAssociation",
+              "_id": "assoc-session-message",
+              "name": "contains",
+              "end1": { "reference": "cls-session", "multiplicity": "1", "navigable": false },
+              "end2": { "reference": "cls-message", "multiplicity": "0..*", "navigable": true }
+            },
+
+            {
+              "_type": "UMLAssociation",
+              "_id": "assoc-session-confirmed",
+              "name": "confirms",
+              "end1": { "reference": "cls-session", "multiplicity": "1", "navigable": false },
+              "end2": { "reference": "cls-confirmed-movie", "multiplicity": "0..1", "navigable": true }
+            },
+
+            {
+              "_type": "UMLDependency",
+              "_id": "dep-session-phase",
+              "end1": { "reference": "cls-session" },
+              "end2": { "reference": "enum-phase" }
+            },
+
+            {
+              "_type": "UMLDependency",
+              "_id": "dep-message-role",
+              "end1": { "reference": "cls-message" },
+              "end2": { "reference": "enum-role" }
+            }
+          ]
+        },
+
+        {
+          "_type": "UMLPackage",
+          "_id": "pkg-sequences",
+          "name": "Sequence Diagrams",
+          "ownedElements": [
+
+            {
+              "_type": "UMLCollaboration",
+              "_id": "seq-auth",
+              "name": "Authentication Flow",
+              "documentation": "User registration and login flow. Access token (30 min) + refresh token (7 days) returned on success.",
+              "ownedElements": [
+                {
+                  "_type": "UMLInteraction",
+                  "_id": "int-auth",
+                  "name": "Authentication Flow",
+                  "participants": [
+                    { "_type": "UMLLifeline", "_id": "lf-browser", "name": "Browser (Angular)" },
+                    { "_type": "UMLLifeline", "_id": "lf-auth-router", "name": "Auth Router (FastAPI)" },
+                    { "_type": "UMLLifeline", "_id": "lf-session-store", "name": "Session Store (asyncpg)" },
+                    { "_type": "UMLLifeline", "_id": "lf-postgres", "name": "PostgreSQL" }
+                  ],
+                  "fragments": [
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-browser",
+                      "to": "lf-auth-router",
+                      "message": "POST /auth/register {email, password}",
+                      "messageSort": "synchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-auth-router",
+                      "to": "lf-session-store",
+                      "message": "create_user(email, bcrypt(password))",
+                      "messageSort": "synchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-session-store",
+                      "to": "lf-postgres",
+                      "message": "INSERT INTO users (id, email, hashed_password)",
+                      "messageSort": "synchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-postgres",
+                      "to": "lf-session-store",
+                      "message": "user row",
+                      "messageSort": "reply"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-auth-router",
+                      "to": "lf-browser",
+                      "message": "201 {access_token (30 min), refresh_token (7 days)}",
+                      "messageSort": "reply"
+                    },
+                    {
+                      "_type": "UMLNote",
+                      "text": "Login follows the same flow but reads the user row and verifies the bcrypt hash. Returns 401 on mismatch."
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-browser",
+                      "to": "lf-auth-router",
+                      "message": "POST /auth/refresh {refresh_token}",
+                      "messageSort": "synchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-auth-router",
+                      "to": "lf-browser",
+                      "message": "200 {new access_token, new refresh_token} OR 401",
+                      "messageSort": "reply"
+                    }
+                  ]
+                }
+              ]
+            },
+
+            {
+              "_type": "UMLCollaboration",
+              "_id": "seq-chat",
+              "name": "Chat SSE Flow",
+              "documentation": "Full chat request → SSE stream → client handling. Token events streamed incrementally; done event carries phase data.",
+              "ownedElements": [
+                {
+                  "_type": "UMLInteraction",
+                  "_id": "int-chat",
+                  "name": "Chat SSE Flow",
+                  "participants": [
+                    { "_type": "UMLLifeline", "_id": "lf-c-browser", "name": "Browser (Angular)" },
+                    { "_type": "UMLLifeline", "_id": "lf-c-interceptor", "name": "Auth Interceptor" },
+                    { "_type": "UMLLifeline", "_id": "lf-c-chat-router", "name": "Chat Router" },
+                    { "_type": "UMLLifeline", "_id": "lf-c-jwt", "name": "JWT Middleware" },
+                    { "_type": "UMLLifeline", "_id": "lf-c-store", "name": "Session Store" },
+                    { "_type": "UMLLifeline", "_id": "lf-c-chain", "name": "LangGraph Chain" }
+                  ],
+                  "fragments": [
+                    {
+                      "_type": "UMLNote",
+                      "text": "Client generates UUID v4 session_id. New session created automatically on first use."
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-c-browser",
+                      "to": "lf-c-interceptor",
+                      "message": "fetch POST /chat {session_id, message}",
+                      "messageSort": "synchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-c-interceptor",
+                      "to": "lf-c-chat-router",
+                      "message": "POST /chat + Authorization: Bearer <access_token>",
+                      "messageSort": "synchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-c-chat-router",
+                      "to": "lf-c-jwt",
+                      "message": "validate Bearer token",
+                      "messageSort": "synchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-c-jwt",
+                      "to": "lf-c-chat-router",
+                      "message": "user_id",
+                      "messageSort": "reply"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-c-chat-router",
+                      "to": "lf-c-store",
+                      "message": "get_or_create_session(session_id, user_id)",
+                      "messageSort": "synchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-c-chat-router",
+                      "to": "lf-c-store",
+                      "message": "save_message(role=user, content)",
+                      "messageSort": "synchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-c-chat-router",
+                      "to": "lf-c-chain",
+                      "message": "stream_events(message, history, phase)",
+                      "messageSort": "asynchCall"
+                    },
+                    {
+                      "_type": "UMLNote",
+                      "text": "Chain streams: data: {type:'token', content:'...'} — many times\nThen: data: {type:'done', phase, session_id, reply, candidates?, confirmed_movie?} — exactly once"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-c-chain",
+                      "to": "lf-c-browser",
+                      "message": "SSE: data: {type:'token', content:'chunk'} × N",
+                      "messageSort": "asynchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-c-chain",
+                      "to": "lf-c-browser",
+                      "message": "SSE: data: {type:'done', phase, reply, ...}",
+                      "messageSort": "asynchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-c-chat-router",
+                      "to": "lf-c-store",
+                      "message": "save_message(role=assistant, content=reply)",
+                      "messageSort": "asynchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-c-chat-router",
+                      "to": "lf-c-store",
+                      "message": "update_session_phase(phase, confirmed_movie?)",
+                      "messageSort": "asynchCall"
+                    }
+                  ]
+                }
+              ]
+            },
+
+            {
+              "_type": "UMLCollaboration",
+              "_id": "seq-chain",
+              "name": "LangGraph Chain Execution",
+              "documentation": "Internal execution of the LangGraph multi-agent pipeline. Shows node sequence for the discovery and confirmation phases, including refinement cycles.",
+              "ownedElements": [
+                {
+                  "_type": "UMLInteraction",
+                  "_id": "int-chain",
+                  "name": "LangGraph Chain Execution",
+                  "participants": [
+                    { "_type": "UMLLifeline", "_id": "lf-ch-entry", "name": "Chain Entry" },
+                    { "_type": "UMLLifeline", "_id": "lf-ch-rag", "name": "RAG Search Node" },
+                    { "_type": "UMLLifeline", "_id": "lf-ch-imdb", "name": "IMDb Enrichment Node" },
+                    { "_type": "UMLLifeline", "_id": "lf-ch-val", "name": "Validation Node" },
+                    { "_type": "UMLLifeline", "_id": "lf-ch-pres", "name": "Presentation Node" },
+                    { "_type": "UMLLifeline", "_id": "lf-ch-conf", "name": "Confirmation Node" },
+                    { "_type": "UMLLifeline", "_id": "lf-ch-qa", "name": "Q&A Agent Node" },
+                    { "_type": "UMLLifeline", "_id": "lf-ch-ref", "name": "Refinement Node" },
+                    { "_type": "UMLLifeline", "_id": "lf-ch-dead", "name": "Dead-End Node" }
+                  ],
+                  "fragments": [
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-ch-entry",
+                      "to": "lf-ch-rag",
+                      "message": "embed query → search Qdrant top-K",
+                      "messageSort": "synchCall"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-ch-rag",
+                      "to": "lf-ch-imdb",
+                      "message": "candidates + cosine scores",
+                      "messageSort": "reply"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-ch-imdb",
+                      "to": "lf-ch-val",
+                      "message": "enriched candidates (title, year, rating, poster, confidence)",
+                      "messageSort": "reply"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-ch-val",
+                      "to": "lf-ch-pres",
+                      "message": "deduplicated, filtered candidates (confidence >= threshold)",
+                      "messageSort": "reply"
+                    },
+                    {
+                      "_type": "UMLNote",
+                      "text": "[alt] Candidates found → Presentation → stream to user → wait for next message"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-ch-pres",
+                      "to": "lf-ch-conf",
+                      "message": "phase=confirmation, candidates list",
+                      "messageSort": "reply"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-ch-conf",
+                      "to": "lf-ch-qa",
+                      "message": "user confirmed → confirmed_movie",
+                      "messageSort": "reply"
+                    },
+                    {
+                      "_type": "UMLNote",
+                      "text": "[alt] No candidates OR user says 'none match' → Refinement (max 3 cycles)"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-ch-val",
+                      "to": "lf-ch-ref",
+                      "message": "no confident candidates / user rejection",
+                      "messageSort": "reply"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-ch-ref",
+                      "to": "lf-ch-rag",
+                      "message": "refined query (cycle 1, 2, 3)",
+                      "messageSort": "reply"
+                    },
+                    {
+                      "_type": "UMLMessageEndpoint",
+                      "from": "lf-ch-ref",
+                      "to": "lf-ch-dead",
+                      "message": "max refinements reached",
+                      "messageSort": "reply"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
