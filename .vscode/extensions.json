@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "jebbs.plantuml",                        // PlantUML preview (Alt+D / Option+D)
+    "yzhang.markdown-all-in-one",            // Markdown editing, TOC generation
+    "davidanson.vscode-markdownlint",        // Markdown linting
+    "streetsidesoftware.code-spell-checker",
+    "redhat.vscode-yaml",
+    "eamodio.gitlens"
+  ]
+}
