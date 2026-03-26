@@ -103,12 +103,34 @@ Update `workspace.dsl` when:
 
 ---
 
+## Workflow invariants
+
+- This repo is the gitlink path `docs` inside `aharbii/movie-finder`. Parent workflow/path
+  filters must use `docs`, not `docs/**`.
+- Cross-repo tracker issues originate in `aharbii/movie-finder`. Create the linked child issue in
+  this repo only if this repo will actually change.
+- Inspect `.github/ISSUE_TEMPLATE/*.yml`, `.github/PULL_REQUEST_TEMPLATE.md` when present, and a
+  recent example before creating or editing issues/PRs. Do not improvise titles or bodies.
+- For child issues in this repo, use `.github/ISSUE_TEMPLATE/linked_task.yml` and keep the
+  description, file references, and acceptance criteria repo-specific.
+- If CI, required checks, or merge policy changes affect this repo, update contributor-facing docs
+  here and in `aharbii/movie-finder` where relevant.
+- If a new standalone issue appears mid-session, branch from `main` unless stacking is explicitly
+  requested.
+- PR descriptions must disclose the AI authoring tool + model. Any AI-assisted review comment or
+  approval must also disclose the review tool + model.
+
+---
+
 ## Session start protocol
 
 1. `gh issue list --repo aharbii/movie-finder --state open`
-2. Create issue in `aharbii/movie-finder`, then `aharbii/movie-finder-docs` linked
-3. Create `docs/` or `chore/` branch
-4. Work through the checklist below
+2. Inspect `.github/ISSUE_TEMPLATE/*.yml`, `.github/PULL_REQUEST_TEMPLATE.md` when present, and a
+   recent example of the same type
+3. Create the parent issue in `aharbii/movie-finder`, then the linked child issue in
+   `aharbii/movie-finder-docs` only if this repo will actually change
+4. Create a `docs/` or `chore/` branch from `main`
+5. Work through the checklist below
 
 ---
 
@@ -127,10 +149,12 @@ Conventional Commits: `docs(architecture): update C4 container diagram for Gemin
 
 ### 1. GitHub issues
 - [ ] `aharbii/movie-finder` (parent)
-- [ ] `aharbii/movie-finder-docs` linked
+- [ ] `aharbii/movie-finder-docs` linked child issue only if this repo changes
+- [ ] Matching issue/PR templates and a recent example were inspected before filing or editing
 
 ### 2. Branch
 - [ ] `docs/` branch in this repo + `chore/` in root `movie-finder` to bump pointer
+- [ ] New standalone issues branch from `main` unless stacking is explicitly requested
 
 ### 3. Diagram changes
 - [ ] Edited the `.puml` source (not the `.png`)
@@ -148,6 +172,7 @@ Conventional Commits: `docs(architecture): update C4 container diagram for Gemin
 - [ ] `./scripts/prepare-docs.sh` runs without errors (from root)
 - [ ] `mkdocs serve` renders the page correctly
 - [ ] No broken internal links
+- [ ] Contributor docs in the root repo updated when CI, required checks, or merge policy change
 
 ### 6. Submodule pointer bump
 ```bash
@@ -156,5 +181,6 @@ git add docs && git commit -m "docs: bump to latest main"
 ```
 
 ### 7. Pull request
-- [ ] PR in `aharbii/movie-finder-docs`
+- [ ] PR in `aharbii/movie-finder-docs` discloses the AI authoring tool + model
 - [ ] PR in `aharbii/movie-finder` (pointer bump)
+- [ ] Any AI-assisted review comment or approval discloses the review tool + model
