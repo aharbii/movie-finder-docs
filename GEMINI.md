@@ -23,6 +23,25 @@ MkDocs site with architecture diagrams and ADRs.
 
 ---
 
+## Workflow invariants
+
+- This repo is the gitlink path `docs` inside `aharbii/movie-finder`. Parent workflow/path
+  filters must use `docs`, not `docs/**`.
+- Cross-repo tracker issues originate in `aharbii/movie-finder`. Create the linked child issue in
+  this repo only if this repo will actually change.
+- Inspect `.github/ISSUE_TEMPLATE/*.yml`, `.github/PULL_REQUEST_TEMPLATE.md` when present, and a
+  recent example before creating or editing issues/PRs. Do not improvise titles or bodies.
+- For child issues in this repo, use `.github/ISSUE_TEMPLATE/linked_task.yml` and keep the
+  description, file references, and acceptance criteria repo-specific.
+- If CI, required checks, or merge policy changes affect this repo, update contributor-facing docs
+  here and in `aharbii/movie-finder` where relevant.
+- If a new standalone issue appears mid-session, branch from `main` unless stacking is explicitly
+  requested.
+- PR descriptions must disclose the AI authoring tool + model. Any AI-assisted review comment or
+  approval must also disclose the review tool + model.
+
+---
+
 ## VSCode setup
 
 `docs/.vscode/` — workspace configuration for documentation editing.
