@@ -85,10 +85,10 @@ xdg-open docs/api/swagger-ui.html   # Linux
 ```bash
 # Via docker compose (from repo root)
 docker compose --profile docs up structurizr
-# Open: http://localhost:8080
+# Open: http://localhost:18080
 
-# Or standalone
-docker run -it --rm -p 8080:8080 \
+# Or standalone (port 18080 avoids conflicts with Jenkins:8080 and FastAPI:8000)
+docker run -it --rm -p 18080:8080 \
   -v "$(pwd)/docs/architecture:/usr/local/structurizr" \
   structurizr/lite
 ```

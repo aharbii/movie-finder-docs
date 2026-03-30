@@ -6,14 +6,15 @@
  *   L2 — Container diagram
  *   L3 — Component diagram (backend)
  *
- * Render with:
- *   docker run -it --rm -p 8080:8080 \
- *     -v "$(pwd):/usr/local/structurizr" \
- *     structurizr/lite
+ * Render with (from repo root):
+ *   docker compose --profile docs up structurizr
+ *   open http://localhost:18080
  *
- * Or export to PNG/SVG:
+ * Port 18080 avoids conflicts with Jenkins (8080) and FastAPI (8000).
+ *
+ * Or export to PNG/SVG with the Structurizr CLI:
  *   docker run --rm \
- *     -v "$(pwd):/usr/local/structurizr" \
+ *     -v "$(pwd)/docs/architecture:/usr/local/structurizr" \
  *     structurizr/cli export \
  *     -workspace /usr/local/structurizr/workspace.dsl \
  *     -format png
