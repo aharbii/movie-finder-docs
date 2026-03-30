@@ -9,7 +9,7 @@ This section documents the Movie Finder architecture at multiple levels of detai
 
 | File / Section | Format | Purpose |
 |---|---|---|
-| [`workspace.dsl`](workspace.dsl) | Structurizr DSL (C4) | L1 System Context · L2 Containers · L3 Components · Deployment |
+| [`workspace.dsl`](https://github.com/aharbii/movie-finder-docs/blob/main/architecture/workspace.dsl) | Structurizr DSL (C4) | L1 System Context · L2 Containers · L3 Components · Deployment |
 | [PlantUML Diagrams](plantuml/index.md) | PlantUML (`.puml`) | Class · Component · Sequence · State · Deployment diagrams |
 | [`decisions/`](decisions/index.md) | Markdown ADRs | Architecture decision records |
 
@@ -37,8 +37,9 @@ This section documents the Movie Finder architecture at multiple levels of detai
 === "Structurizr (C4 model)"
 
     ```bash
+    # from repo root
     docker compose --profile docs up structurizr
-    # → http://localhost:8080
+    # → http://localhost:18080
     ```
 
     Navigate between: **System Context · Containers · Components · Deployment (Azure / Local)**

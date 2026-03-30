@@ -12,6 +12,7 @@ Architecture Decision Records (ADRs) document the significant choices made durin
 | ID | Title | Status | Date |
 |----|-------|--------|------|
 | [ADR-001](ADR-001-initial-architecture.md) | Initial architecture — tech stack and repository structure | Accepted | 2025-Q4 |
+| [ADR-002](ADR-002-docker-only-developer-contract.md) | Docker-only developer contract — standardised Makefile targets across all Python sub-repos | Accepted | 2026-Q1 |
 
 ## How to write a new ADR
 
