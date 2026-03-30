@@ -147,32 +147,13 @@ Conventional Commits: `docs(architecture): update C4 container diagram for Gemin
 
 ## Cross-cutting change checklist
 
-### 1. GitHub issues
-- [ ] `aharbii/movie-finder` (parent)
-- [ ] `aharbii/movie-finder-docs` linked child issue only if this repo changes
-- [ ] Matching issue/PR templates and a recent example were inspected before filing or editing
-
-### 2. Branch
-- [ ] `docs/` branch in this repo + `chore/` in root `movie-finder` to bump pointer
-- [ ] New standalone issues branch from `main` unless stacking is explicitly requested
-
-### 3. Diagram changes
-- [ ] Edited the `.puml` source (not the `.png`)
-- [ ] Verified PlantUML renders correctly: `plantuml -png <file>.puml`
-- [ ] `workspace.dsl` updated if C4 model changed
-- [ ] Verified Structurizr renders: `docker compose -f docker-compose.docs.yml up`
-- [ ] **No `.mdj` file generated**
-
-### 4. ADR (if applicable)
-- [ ] New ADR follows the template from `decisions/index.md`
-- [ ] Status set to `Proposed` (moves to `Accepted` after PR review)
-- [ ] ADR index (`decisions/index.md`) updated with new entry
-
-### 5. Content quality
-- [ ] `./scripts/prepare-docs.sh` runs without errors (from root)
-- [ ] `mkdocs serve` renders the page correctly
-- [ ] No broken internal links
-- [ ] Contributor docs in the root repo updated when CI, required checks, or merge policy change
+| # | Category | Key gate |
+|---|---|---|
+| 1 | **Issues** | Parent `aharbii/movie-finder` + child here only if this repo changes; templates inspected |
+| 2 | **Branch** | `docs/<kebab>` in this repo + pointer-bump `chore/` in root `movie-finder` |
+| 3 | **Diagrams** | Edit `.puml` source (not `.png`); verify with `plantuml -png`; `workspace.dsl` updated if C4 changed; Structurizr verified; **no `.mdj` generated** |
+| 4 | **ADR** | Follows template from `decisions/index.md`; status `Proposed`; index updated |
+| 5 | **Content** | `./scripts/prepare-docs.sh` clean; `mkdocs serve` renders correctly; no broken links |
 
 ### 6. Submodule pointer bump
 ```bash
