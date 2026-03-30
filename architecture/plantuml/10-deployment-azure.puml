@@ -57,7 +57,7 @@ package "Microsoft Azure" #E8F5E9 {
   end note
 
   node "Azure Key Vault" as akv {
-    artifact "DB_PASSWORD\nAPP_SECRET_KEY\nANTHROPIC_API_KEY\nOPENAI_API_KEY\nQDRANT_API_KEY\nJWT_ALGORITHM\n..." as secrets
+    artifact "DATABASE_URL\nAPP_SECRET_KEY\nANTHROPIC_API_KEY\nOPENAI_API_KEY\nQDRANT_URL\nQDRANT_API_KEY_RO\n..." as secrets
   }
 
   note right of akv

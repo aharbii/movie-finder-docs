@@ -52,7 +52,7 @@ Azure Container Registry, Jenkins.
 
 **View locally:**
 ```bash
-docker compose -f docker-compose.docs.yml up   # → http://localhost:8080
+docker compose --profile docs up structurizr   # → http://localhost:18080
 ```
 
 Update `workspace.dsl` when:
