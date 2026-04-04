@@ -13,41 +13,41 @@ AI-powered movie discovery and Q&A. Describe a film you half-remember and the sy
 
 <div class="grid cards" markdown>
 
--   **Getting Started**
+- **Getting Started**
 
-    Zero-to-running guide for all roles — prerequisites, cloning, secrets, local stack.
+  Zero-to-running guide for all roles — prerequisites, cloning, secrets, local stack.
 
-    [:octicons-arrow-right-24: Onboarding guide](onboarding.md)
+  [:octicons-arrow-right-24: Onboarding guide](onboarding.md)
 
--   **API Reference**
+- **API Reference**
 
-    OpenAPI 3.1.0 specification with interactive Swagger UI.
+  OpenAPI 3.1.0 specification with interactive Swagger UI.
 
-    [:octicons-arrow-right-24: API docs](api/index.md)
+  [:octicons-arrow-right-24: API docs](api/index.md)
 
--   **Architecture**
+- **Architecture**
 
-    C4 model, class diagrams, sequence diagrams, and architecture decision records.
+  C4 model, class diagrams, sequence diagrams, and architecture decision records.
 
-    [:octicons-arrow-right-24: Architecture](architecture/index.md)
+  [:octicons-arrow-right-24: Architecture](architecture/index.md)
 
--   **DevOps & Platform**
+- **DevOps & Platform**
 
-    Jenkins setup, Azure provisioning, CI/CD pipeline guide, secrets management.
+  Jenkins setup, Azure provisioning, CI/CD pipeline guide, secrets management.
 
-    [:octicons-arrow-right-24: DevOps setup](devops/setup.md)
+  [:octicons-arrow-right-24: DevOps setup](devops/setup.md)
 
--   **Services**
+- **Services**
 
-    Individual service documentation — backend, frontend, chain, IMDb client, RAG ingestion.
+  Individual service documentation — backend, frontend, chain, IMDb client, RAG ingestion.
 
-    [:octicons-arrow-right-24: Services](services/index.md)
+  [:octicons-arrow-right-24: Services](services/index.md)
 
--   **Contributing**
+- **Contributing**
 
-    Branching strategy, commit conventions, PR process, code standards, testing requirements.
+  Branching strategy, commit conventions, PR process, code standards, testing requirements.
 
-    [:octicons-arrow-right-24: Contributing](contributing/index.md)
+  [:octicons-arrow-right-24: Contributing](contributing/index.md)
 
 </div>
 
@@ -80,33 +80,33 @@ CI/CD: Jenkins (CONTRIBUTION → INTEGRATION → RELEASE)
 
 ## Repository map
 
-| Submodule | Description |
-|-----------|-------------|
-| [`backend/`](https://github.com/aharbii/movie-finder-backend) | FastAPI + LangGraph integration root |
-| [`backend/app/`](https://github.com/aharbii/movie-finder-backend) | Auth, chat routers, session store |
-| [`backend/chain/`](https://github.com/aharbii/movie-finder-chain) | LangGraph multi-agent pipeline |
-| [`backend/chain/imdbapi/`](https://github.com/aharbii/imdbapi-client) | Async IMDb REST API client |
-| [`backend/rag_ingestion/`](https://github.com/aharbii/movie-finder-rag) | Dataset → embed → Qdrant ingestion |
-| [`frontend/`](https://github.com/aharbii/movie-finder-frontend) | Angular 21 SPA |
-| [`docs/`](https://github.com/aharbii/movie-finder-docs) | This documentation site |
-| [`infrastructure/`](https://github.com/aharbii/movie-finder-infrastructure) | IaC and provisioning scripts |
+| Submodule                                                                   | Description                          |
+| --------------------------------------------------------------------------- | ------------------------------------ |
+| [`backend/`](https://github.com/aharbii/movie-finder-backend)               | FastAPI + LangGraph integration root |
+| [`backend/app/`](https://github.com/aharbii/movie-finder-backend)           | Auth, chat routers, session store    |
+| [`backend/chain/`](https://github.com/aharbii/movie-finder-chain)           | LangGraph multi-agent pipeline       |
+| [`backend/chain/imdbapi/`](https://github.com/aharbii/imdbapi-client)       | Async IMDb REST API client           |
+| [`backend/rag_ingestion/`](https://github.com/aharbii/movie-finder-rag)     | Dataset → embed → Qdrant ingestion   |
+| [`frontend/`](https://github.com/aharbii/movie-finder-frontend)             | Angular 21 SPA                       |
+| [`docs/`](https://github.com/aharbii/movie-finder-docs)                     | This documentation site              |
+| [`infrastructure/`](https://github.com/aharbii/movie-finder-infrastructure) | IaC and provisioning scripts         |
 
 ---
 
 ## Tech stack at a glance
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Angular 21, TypeScript 5.9, Vitest, ESLint 9, nginx |
-| Backend | Python 3.13, FastAPI, LangGraph, asyncpg |
-| AI — reasoning | Anthropic Claude Haiku (classification) + Sonnet (Q&A) |
-| AI — embeddings | OpenAI `text-embedding-3-large` (3072 dim) |
-| Vector store | Qdrant Cloud |
-| Relational DB | PostgreSQL 16 |
-| Containerisation | Docker multi-stage builds |
-| CI/CD | Jenkins (Multibranch Pipelines) |
-| Registry | Azure Container Registry |
-| Cloud | Azure Container Apps + PostgreSQL Flexible Server + Key Vault |
+| Layer            | Technology                                                    |
+| ---------------- | ------------------------------------------------------------- |
+| Frontend         | Angular 21, TypeScript 5.9, Vitest, ESLint 9, nginx           |
+| Backend          | Python 3.13, FastAPI, LangGraph, asyncpg                      |
+| AI — reasoning   | Anthropic Claude Haiku (classification) + Sonnet (Q&A)        |
+| AI — embeddings  | OpenAI `text-embedding-3-large` (3072 dim)                    |
+| Vector store     | Qdrant Cloud                                                  |
+| Relational DB    | PostgreSQL 16                                                 |
+| Containerisation | Docker multi-stage builds                                     |
+| CI/CD            | Jenkins (Multibranch Pipelines)                               |
+| Registry         | Azure Container Registry                                      |
+| Cloud            | Azure Container Apps + PostgreSQL Flexible Server + Key Vault |
 
 ---
 

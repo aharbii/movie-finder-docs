@@ -2,7 +2,7 @@
 
 **Repo:** `aharbii/movie-finder-docs`
 **Parent tracker:** `aharbii/movie-finder`
-**Build:** `./scripts/prepare-docs.sh && mkdocs build` (from repo root)
+**Build:** `make mkdocs` (from repo root)
 
 Implement GitHub issue #$ARGUMENTS from `aharbii/movie-finder-docs`.
 
@@ -42,7 +42,8 @@ git checkout -b docs/[kebab-case-title]
 ## Step 5 — Implement
 
 Docs-specific rules:
-- Run `./scripts/prepare-docs.sh` before `mkdocs serve` — it copies submodule READMEs and renders PNGs
+
+- Run `make mkdocs` from repo root to verify — it runs prepare-docs.sh, renders PNGs, and serves at :8001
 - PlantUML source lives in `architecture/plantuml/*.puml` — always update `.puml` files, never commit generated PNGs
 - Structurizr DSL lives in `architecture/workspace.dsl` — update when components or relations change
 - ADRs live in `architecture/decisions/` — copy the template from `index.md`
@@ -55,8 +56,9 @@ Docs-specific rules:
 ## Step 6 — Verify build
 
 ```bash
-./scripts/prepare-docs.sh
-mkdocs build --strict
+# From repo root — runs prepare-docs.sh and serves with live-reload
+make mkdocs
+# Confirm: no broken-link warnings in the terminal output
 ```
 
 ---

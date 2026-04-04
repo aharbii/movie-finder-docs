@@ -26,6 +26,7 @@ If it checks the database, what does it return on failure?
 **3. Missing or undocumented endpoints**
 
 The `docs/openapi.yaml` documents these endpoints:
+
 - `POST /auth/register`
 - `POST /auth/login`
 - `POST /auth/refresh`
@@ -42,6 +43,7 @@ Common omissions to check: `GET /auth/me`, `POST /auth/logout`, any `/admin` end
 
 What are the exact conditional edges in the compiled LangGraph graph?
 Specifically:
+
 - What condition routes from `validation` to `refinement` vs `presentation`?
 - What is the confidence threshold below which a candidate is filtered?
 - Can a user explicitly reject all candidates, and if so, what node handles that?
@@ -87,6 +89,7 @@ Please share the exact interface names and their fields so I can document the fr
 **3. Auth token refresh strategy**
 
 The `auth.interceptor.ts` injects the Bearer token on every request. What happens when it receives a 401 response?
+
 - Does it automatically call `/auth/refresh` and retry the original request?
 - Or does it redirect to `/login` immediately?
 - Is there a token expiry check before the request is sent (proactive refresh)?

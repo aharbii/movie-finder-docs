@@ -77,30 +77,34 @@
 
 ### 2.1 Image inventory
 
-| Image | Base | Compressed size | Notes |
-|---|---|---|---|
-| `movie-finder-backend` | `python:3.13-slim` | ~280 MB | uv venv + FastAPI stack |
-| `movie-finder-frontend` | `nginx:stable-alpine` | ~25 MB | Angular bundle + nginx |
-| `postgres:16-alpine` | *(official)* | ~85 MB | Local dev only; Azure PG Flexible Server in production |
+| Image                   | Base                  | Compressed size | Notes                                                  |
+| ----------------------- | --------------------- | --------------- | ------------------------------------------------------ |
+| `movie-finder-backend`  | `python:3.13-slim`    | ~280 MB         | uv venv + FastAPI stack                                |
+| `movie-finder-frontend` | `nginx:stable-alpine` | ~25 MB          | Angular bundle + nginx                                 |
+| `postgres:16-alpine`    | _(official)_          | ~85 MB          | Local dev only; Azure PG Flexible Server in production |
 
 Both application images use **multi-stage builds**:
+
 - Backend: builder (uv + Python deps) → runtime (slim Python, no build tools)
 - Frontend: deps (npm cache) → builder (Angular compile) → runner (nginx only, no Node.js)
 
 ### 2.2 Build optimizations in place
 
 **Backend (`backend/Dockerfile`):**
+
 - uv version pinned to `0.5` series — reproducible, no surprise upgrades
 - `--mount=type=cache,target=/root/.cache/uv` — uv download cache never enters the layer
 - `COPY --link` in the runtime stage — BuildKit resolves layers in parallel
 - `HEALTHCHECK` uses stdlib `urllib` — no `curl` installation needed in slim image
 
 **Frontend (`frontend/Dockerfile`):**
+
 - `--mount=type=cache,target=/root/.npm` — npm cache never enters the layer
 - `node_modules` copied from the `deps` stage, not re-downloaded in `builder`
 - Final image is nginx-only — zero Node.js in production
 
 **CI (`backend/Jenkinsfile`, `frontend/Jenkinsfile`):**
+
 - `docker pull :latest || true` before build — seeds the local cache
 - `--cache-from :latest` — reuses unchanged layers from the previous push
 
@@ -131,6 +135,7 @@ docker compose up --build
 ```
 
 The root `docker-compose.yml` wires three services together:
+
 - `postgres` starts first (health-checked with `pg_isready`)
 - `backend` waits for postgres healthy, overrides `DATABASE_URL` to reach the compose postgres
 - `frontend` waits for backend healthy, sets `BACKEND_URL=http://backend:8000` for nginx proxy
@@ -160,11 +165,11 @@ make run-dev
 
 Both the backend and frontend pipelines share the same three-mode design, automatically selected by Git context:
 
-| Mode | Trigger | Backend stages | Frontend stages |
-|---|---|---|---|
-| **CONTRIBUTION** | Feature branch, PR | Lint (parallel) · Unit tests (parallel) | Type-check |
-| **INTEGRATION** | Push to `main` | All above + Build image + Push `:sha8` `:latest` + (opt) Deploy staging | Type-check + Build + Push `:sha8` `:latest` + (opt) Deploy staging |
-| **RELEASE** | Git tag `v*` | All above + Push `:v1.2.3` + Manual approval → Deploy production | All above + Push `:v1.2.3` + (opt) Deploy production |
+| Mode             | Trigger            | Backend stages                                                          | Frontend stages                                                    |
+| ---------------- | ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| **CONTRIBUTION** | Feature branch, PR | Lint (parallel) · Unit tests (parallel)                                 | Type-check                                                         |
+| **INTEGRATION**  | Push to `main`     | All above + Build image + Push `:sha8` `:latest` + (opt) Deploy staging | Type-check + Build + Push `:sha8` `:latest` + (opt) Deploy staging |
+| **RELEASE**      | Git tag `v*`       | All above + Push `:v1.2.3` + Manual approval → Deploy production        | All above + Push `:v1.2.3` + (opt) Deploy production               |
 
 **CONTRIBUTION** gives developers fast feedback (< 5 min) without spending ACR egress or Azure compute. Nothing is built or pushed.
 
@@ -178,13 +183,13 @@ Both the backend and frontend pipelines share the same three-mode design, automa
 
 Install these on the Jenkins Ubuntu machine and your operator workstation.
 
-| Tool | Min version | Install |
-|---|---|---|
-| Azure CLI | 2.60 | `curl -sL https://aka.ms/InstallAzureCLIDeb \| sudo bash` |
-| Docker Engine | 24 | `sudo apt install docker.io` |
-| Java 21 | 21 | `sudo apt install openjdk-21-jre-headless` |
-| ngrok | 3.x | [ngrok.com/download](https://ngrok.com/download) |
-| Git | 2.x | `sudo apt install git` |
+| Tool          | Min version | Install                                                   |
+| ------------- | ----------- | --------------------------------------------------------- |
+| Azure CLI     | 2.60        | `curl -sL https://aka.ms/InstallAzureCLIDeb \| sudo bash` |
+| Docker Engine | 24          | `sudo apt install docker.io`                              |
+| Java 21       | 21          | `sudo apt install openjdk-21-jre-headless`                |
+| ngrok         | 3.x         | [ngrok.com/download](https://ngrok.com/download)          |
+| Git           | 2.x         | `sudo apt install git`                                    |
 
 Log in to Azure before running any `az` commands:
 
@@ -218,17 +223,17 @@ chmod +x backend/deploy/provision.sh
 
 The script creates (per environment):
 
-| Resource | Purpose |
-|---|---|
-| Resource Group `rg-movie-finder-{env}` | Scope boundary for RBAC and billing |
-| Container Registry `acrmoviefinder` | Shared Docker image store (one ACR for both envs) |
-| Key Vault `kv-movie-finder-{env}` | Stores all backend runtime secrets |
-| Azure Database for PostgreSQL Flexible Server | Relational DB for users, sessions, messages |
-| Log Analytics Workspace | Required by Container Apps; enables log queries |
-| Container Apps Environment `cae-movie-finder-{env}` | Shared runtime for all apps |
-| Container App `ca-movie-finder-{env}` | Backend FastAPI service (placeholder image) |
-| Managed Identity `id-movie-finder-{env}` | Pulls images from ACR; reads Key Vault secrets |
-| Service Principal `sp-movie-finder-cicd` | Jenkins CI/CD — push to ACR, update Container Apps |
+| Resource                                            | Purpose                                            |
+| --------------------------------------------------- | -------------------------------------------------- |
+| Resource Group `rg-movie-finder-{env}`              | Scope boundary for RBAC and billing                |
+| Container Registry `acrmoviefinder`                 | Shared Docker image store (one ACR for both envs)  |
+| Key Vault `kv-movie-finder-{env}`                   | Stores all backend runtime secrets                 |
+| Azure Database for PostgreSQL Flexible Server       | Relational DB for users, sessions, messages        |
+| Log Analytics Workspace                             | Required by Container Apps; enables log queries    |
+| Container Apps Environment `cae-movie-finder-{env}` | Shared runtime for all apps                        |
+| Container App `ca-movie-finder-{env}`               | Backend FastAPI service (placeholder image)        |
+| Managed Identity `id-movie-finder-{env}`            | Pulls images from ACR; reads Key Vault secrets     |
+| Service Principal `sp-movie-finder-cicd`            | Jenkins CI/CD — push to ACR, update Container Apps |
 
 > **PostgreSQL:** The `DATABASE_URL` is stored in Key Vault and injected as an env var into the Container App via managed identity. Unlike SQLite, PostgreSQL Flexible Server supports horizontal scaling — `maxReplicas` on the backend Container App can safely exceed 1.
 
@@ -388,6 +393,7 @@ curl -s http://localhost:4040/api/tunnels \
 ```
 
 > **Free plan note:** The public URL changes on every ngrok restart. You will need to update the GitHub webhook URL each time. Use a **paid ngrok plan** with a static domain to avoid this:
+>
 > ```bash
 > # In the systemd service, replace the ExecStart line with:
 > ExecStart=/usr/local/bin/ngrok http 8080 --domain=<your-static-domain>.ngrok-free.app --log=stdout
@@ -403,15 +409,15 @@ In Jenkins: **Manage Jenkins → System → Jenkins URL** → set to the ngrok H
 
 Install via **Manage Jenkins → Plugins → Available plugins**, then restart Jenkins.
 
-| Plugin | Purpose |
-|---|---|
-| **Docker Pipeline** | `agent { docker { image '...' } }` blocks |
-| **Git** | Checkout + submodule support |
-| **GitHub Integration** | Webhook trigger, PR status reporting |
-| **Credentials Binding** | `credentials()` in pipeline `environment {}` blocks |
-| **Cobertura** | Coverage report publishing (`cobertura` post step) |
-| **Pipeline: Declarative** | Usually pre-installed with suggested plugins |
-| **Blue Ocean** *(optional)* | Visual pipeline UI |
+| Plugin                      | Purpose                                             |
+| --------------------------- | --------------------------------------------------- |
+| **Docker Pipeline**         | `agent { docker { image '...' } }` blocks           |
+| **Git**                     | Checkout + submodule support                        |
+| **GitHub Integration**      | Webhook trigger, PR status reporting                |
+| **Credentials Binding**     | `credentials()` in pipeline `environment {}` blocks |
+| **Cobertura**               | Coverage report publishing (`cobertura` post step)  |
+| **Pipeline: Declarative**   | Usually pre-installed with suggested plugins        |
+| **Blue Ocean** _(optional)_ | Visual pipeline UI                                  |
 
 ---
 
@@ -427,10 +433,10 @@ These four are used by both the backend and frontend pipelines. Create them once
 
 #### `acr-login-server` — Secret text
 
-| Field | Value |
-|---|---|
-| Kind | **Secret text** |
-| ID | `acr-login-server` |
+| Field  | Value                                          |
+| ------ | ---------------------------------------------- |
+| Kind   | **Secret text**                                |
+| ID     | `acr-login-server`                             |
 | Secret | ACR hostname, e.g. `moviefinderacr.azurecr.io` |
 
 > Copy from `provision.sh` output: **"Credential ID: acr-login-server"**
@@ -439,22 +445,22 @@ These four are used by both the backend and frontend pipelines. Create them once
 
 Used for `docker login` to ACR.
 
-| Field | Value |
-|---|---|
-| Kind | **Username with password** |
-| ID | `acr-credentials` |
+| Field    | Value                                                 |
+| -------- | ----------------------------------------------------- |
+| Kind     | **Username with password**                            |
+| ID       | `acr-credentials`                                     |
 | Username | Service principal App ID (from `provision.sh` output) |
-| Password | Service principal client secret |
+| Password | Service principal client secret                       |
 
 #### `azure-sp` — Username with password
 
 Used for `az login --service-principal` in Deploy stages.
 
-| Field | Value |
-|---|---|
-| Kind | **Username with password** |
-| ID | `azure-sp` |
-| Username | Same SP App ID as above |
+| Field    | Value                          |
+| -------- | ------------------------------ |
+| Kind     | **Username with password**     |
+| ID       | `azure-sp`                     |
+| Username | Same SP App ID as above        |
 | Password | Same SP client secret as above |
 
 > `acr-credentials` and `azure-sp` hold the same SP credentials — they're separate entries because they serve different tools (`docker login` vs `az login`).
@@ -463,33 +469,33 @@ Used for `az login --service-principal` in Deploy stages.
 
 Used by both backend and frontend Deploy stages for `az login`.
 
-| Field | Value |
-|---|---|
-| Kind | **Secret text** |
-| ID | `azure-tenant-id` |
+| Field  | Value                |
+| ------ | -------------------- |
+| Kind   | **Secret text**      |
+| ID     | `azure-tenant-id`    |
 | Secret | Azure AD tenant UUID |
 
 #### `github-ssh-key` — SSH Username with private key
 
 Used by the backend Checkout stage to run `git submodule update --init --recursive`. Add the corresponding public key as a deploy key in all submodule repos (`aharbii/movie-finder-chain`, `aharbii/imdbapi-client`, `aharbii/movie-finder-rag`).
 
-| Field | Value |
-|---|---|
-| Kind | **SSH Username with private key** |
-| ID | `github-ssh-key` |
-| Username | `git` |
+| Field       | Value                                                            |
+| ----------- | ---------------------------------------------------------------- |
+| Kind        | **SSH Username with private key**                                |
+| ID          | `github-ssh-key`                                                 |
+| Username    | `git`                                                            |
 | Private Key | A deploy key private key with read access to all submodule repos |
 
 ### 9.2 Backend-specific credentials
 
 These are only consumed by `backend/Jenkinsfile`.
 
-| Credential ID | Kind | Value |
-|---|---|---|
-| `azure-sub-id` | Secret text | Azure subscription ID |
-| `aca-rg` | Secret text | Resource group, e.g. `movie-finder-rg-staging` |
-| `aca-staging-name` | Secret text | Staging Container App, e.g. `ca-movie-finder-staging` |
-| `aca-prod-name` | Secret text | Production Container App, e.g. `ca-movie-finder-production` |
+| Credential ID      | Kind        | Value                                                       |
+| ------------------ | ----------- | ----------------------------------------------------------- |
+| `azure-sub-id`     | Secret text | Azure subscription ID                                       |
+| `aca-rg`           | Secret text | Resource group, e.g. `movie-finder-rg-staging`              |
+| `aca-staging-name` | Secret text | Staging Container App, e.g. `ca-movie-finder-staging`       |
+| `aca-prod-name`    | Secret text | Production Container App, e.g. `ca-movie-finder-production` |
 
 All four values are printed at the end of `provision.sh`.
 
@@ -497,41 +503,41 @@ All four values are printed at the end of `provision.sh`.
 
 These are only consumed by `frontend/Jenkinsfile`.
 
-| Credential ID | Kind | Value |
-|---|---|---|
-| `aca-staging-rg` | Secret text | Frontend staging resource group |
-| `aca-frontend-staging-name` | Secret text | Staging frontend Container App name |
-| `aca-prod-rg` | Secret text | Frontend production resource group |
-| `aca-frontend-name` | Secret text | Production frontend Container App name |
+| Credential ID               | Kind        | Value                                  |
+| --------------------------- | ----------- | -------------------------------------- |
+| `aca-staging-rg`            | Secret text | Frontend staging resource group        |
+| `aca-frontend-staging-name` | Secret text | Staging frontend Container App name    |
+| `aca-prod-rg`               | Secret text | Frontend production resource group     |
+| `aca-frontend-name`         | Secret text | Production frontend Container App name |
 
-### 9.3 GitHub webhook secret *(recommended)*
+### 9.3 GitHub webhook secret _(recommended)_
 
-| Field | Value |
-|---|---|
-| Kind | **Secret text** |
-| ID | `github-webhook-secret` |
+| Field  | Value                                           |
+| ------ | ----------------------------------------------- |
+| Kind   | **Secret text**                                 |
+| ID     | `github-webhook-secret`                         |
 | Secret | Any random string (e.g. `openssl rand -hex 20`) |
 
 Use the same value in **Manage Jenkins → System → GitHub → Shared secret** and in the GitHub webhook configuration (section 11).
 
 ### 9.4 Complete credentials reference
 
-| ID | Kind | Used by | Purpose |
-|---|---|---|---|
-| `acr-login-server` | Secret text | Both | ACR hostname for docker login + image tags |
-| `acr-credentials` | User+Pass | Both | `docker login` to ACR |
-| `azure-sp` | User+Pass | Both | `az login` for Container App updates |
-| `azure-tenant-id` | Secret text | Both | Tenant ID for `az login` |
-| `github-ssh-key` | SSH private key | Backend | Deploy key for `git submodule update --init --recursive` |
-| `azure-sub-id` | Secret text | Backend | Subscription for `az account set` |
-| `aca-rg` | Secret text | Backend | Resource group of backend Container Apps |
-| `aca-staging-name` | Secret text | Backend | Backend staging Container App name |
-| `aca-prod-name` | Secret text | Backend | Backend production Container App name |
-| `aca-staging-rg` | Secret text | Frontend | Frontend staging resource group |
-| `aca-frontend-staging-name` | Secret text | Frontend | Frontend staging Container App name |
-| `aca-prod-rg` | Secret text | Frontend | Frontend production resource group |
-| `aca-frontend-name` | Secret text | Frontend | Frontend production Container App name |
-| `github-webhook-secret` | Secret text | Jenkins core | Validates webhook signatures |
+| ID                          | Kind            | Used by      | Purpose                                                  |
+| --------------------------- | --------------- | ------------ | -------------------------------------------------------- |
+| `acr-login-server`          | Secret text     | Both         | ACR hostname for docker login + image tags               |
+| `acr-credentials`           | User+Pass       | Both         | `docker login` to ACR                                    |
+| `azure-sp`                  | User+Pass       | Both         | `az login` for Container App updates                     |
+| `azure-tenant-id`           | Secret text     | Both         | Tenant ID for `az login`                                 |
+| `github-ssh-key`            | SSH private key | Backend      | Deploy key for `git submodule update --init --recursive` |
+| `azure-sub-id`              | Secret text     | Backend      | Subscription for `az account set`                        |
+| `aca-rg`                    | Secret text     | Backend      | Resource group of backend Container Apps                 |
+| `aca-staging-name`          | Secret text     | Backend      | Backend staging Container App name                       |
+| `aca-prod-name`             | Secret text     | Backend      | Backend production Container App name                    |
+| `aca-staging-rg`            | Secret text     | Frontend     | Frontend staging resource group                          |
+| `aca-frontend-staging-name` | Secret text     | Frontend     | Frontend staging Container App name                      |
+| `aca-prod-rg`               | Secret text     | Frontend     | Frontend production resource group                       |
+| `aca-frontend-name`         | Secret text     | Frontend     | Frontend production Container App name                   |
+| `github-webhook-secret`     | Secret text     | Jenkins core | Validates webhook signatures                             |
 
 ---
 
@@ -557,15 +563,16 @@ Create two **Multibranch Pipeline** jobs — one per service.
 ### 10.2 Backend pipeline
 
 Same as above except:
+
 - Name: `movie-finder-backend`
 - Script path: `backend/Jenkinsfile`
 
 ### 10.3 Agent label requirements
 
-| Label | Required tools | Who uses it |
-|---|---|---|
-| *(no label)* / `any` | Git, Docker socket access | Checkout, lint, test stages |
-| `deploy` | Azure CLI (`az`) | All Deploy stages |
+| Label                | Required tools            | Who uses it                 |
+| -------------------- | ------------------------- | --------------------------- |
+| _(no label)_ / `any` | Git, Docker socket access | Checkout, lint, test stages |
+| `deploy`             | Azure CLI (`az`)          | All Deploy stages           |
 
 The built-in Jenkins node satisfies both. If you later add cloud agents for isolation, label them accordingly and ensure `az` is installed on the `deploy`-labelled nodes.
 
@@ -577,7 +584,7 @@ The built-in Jenkins node satisfies both. If you later add cloud agents for isol
 
 1. GitHub → **aharbii/movie-finder** → **Settings → Webhooks → Add webhook**
 2. **Payload URL:** `https://<ngrok-url>/github-webhook/`
-   *(trailing slash is required by the Jenkins GitHub plugin)*
+   _(trailing slash is required by the Jenkins GitHub plugin)_
 3. **Content type:** `application/json`
 4. **Secret:** the same value stored in `github-webhook-secret` credential (section 9.3)
 5. **Events:**
@@ -587,7 +594,7 @@ The built-in Jenkins node satisfies both. If you later add cloud agents for isol
 
 GitHub sends an initial ping — verify it returns HTTP 200 in the webhook's **Recent Deliveries** tab.
 
-### 11.2 Branch protection *(recommended)*
+### 11.2 Branch protection _(recommended)_
 
 **Settings → Branches → Add rule** for `main`:
 
@@ -607,13 +614,13 @@ Backend secrets (API keys, JWT signing key) are stored in Key Vault and injected
 The `provision.sh` script stores these automatically:
 
 | Key Vault secret name | Container App env var |
-|---|---|
-| `APP-SECRET-KEY` | `APP_SECRET_KEY` |
-| `ANTHROPIC-API-KEY` | `ANTHROPIC_API_KEY` |
-| `OPENAI-API-KEY` | `OPENAI_API_KEY` |
-| `QDRANT-URL` | `QDRANT_URL` |
-| `QDRANT-API-KEY-RO` | `QDRANT_API_KEY_RO` |
-| `DATABASE-URL` | `DATABASE_URL` |
+| --------------------- | --------------------- |
+| `APP-SECRET-KEY`      | `APP_SECRET_KEY`      |
+| `ANTHROPIC-API-KEY`   | `ANTHROPIC_API_KEY`   |
+| `OPENAI-API-KEY`      | `OPENAI_API_KEY`      |
+| `QDRANT-URL`          | `QDRANT_URL`          |
+| `QDRANT-API-KEY-RO`   | `QDRANT_API_KEY_RO`   |
+| `DATABASE-URL`        | `DATABASE_URL`        |
 
 ### 12.2 Rotate a secret
 
@@ -635,10 +642,10 @@ az containerapp update \
 
 The frontend Container App only needs two environment variables — both non-sensitive:
 
-| Variable | Value |
-|---|---|
-| `API_URL` | `""` (empty — same-origin via nginx proxy) |
-| `BACKEND_URL` | `https://<backend-staging-fqdn>` |
+| Variable      | Value                                      |
+| ------------- | ------------------------------------------ |
+| `API_URL`     | `""` (empty — same-origin via nginx proxy) |
+| `BACKEND_URL` | `https://<backend-staging-fqdn>`           |
 
 These are set directly on the Container App (section 5.3), not via Key Vault.
 
@@ -667,6 +674,7 @@ git push origin test/ci-smoke
 ```
 
 Expected in Jenkins:
+
 - Webhook received (HTTP 200 in GitHub webhook deliveries)
 - **Frontend** job: only `Type-check` runs → green
 - **Backend** job: `Lint` (parallel, 3 sub-stages) + `Test` (parallel, 4 sub-stages) → green
@@ -681,6 +689,7 @@ git push origin main
 ```
 
 Expected:
+
 - Both pipelines run all stages
 - Images pushed to ACR: `:sha8` and `:latest`
 - Backend staging Container App updated automatically
@@ -694,6 +703,7 @@ git push origin v1.0.0
 ```
 
 Expected:
+
 - Both pipelines run all stages
 - Images tagged `:v1.0.0` pushed to ACR
 - Backend: Jenkins UI shows **"Deploy v1.0.0 to PRODUCTION?"** — click **Deploy** within 30 minutes
@@ -720,63 +730,63 @@ curl https://$FQDN/auth/register \
 
 ### 14.1 Jenkins pipeline job summary
 
-| Job name | Jenkinsfile path | Repo URL |
-|---|---|---|
+| Job name                | Jenkinsfile path       | Repo URL                                      |
+| ----------------------- | ---------------------- | --------------------------------------------- |
 | `movie-finder-frontend` | `frontend/Jenkinsfile` | `https://github.com/aharbii/movie-finder.git` |
-| `movie-finder-backend` | `backend/Jenkinsfile` | `https://github.com/aharbii/movie-finder.git` |
+| `movie-finder-backend`  | `backend/Jenkinsfile`  | `https://github.com/aharbii/movie-finder.git` |
 
 ### 14.2 Azure Container Apps
 
-| Container App | Image | Env | Replicas | Port |
-|---|---|---|---|---|
-| `ca-movie-finder-staging` | `movie-finder-backend:sha8` | staging | min=0, max=2 | 8000 |
-| `ca-movie-finder-production` | `movie-finder-backend:v*` | production | min=1, max=4 | 8000 |
-| `movie-finder-frontend-staging` | `movie-finder-frontend:sha8` | staging | min=1, max=3 | 80 |
-| `movie-finder-frontend` | `movie-finder-frontend:v*` | production | min=1, max=5 | 80 |
+| Container App                   | Image                        | Env        | Replicas     | Port |
+| ------------------------------- | ---------------------------- | ---------- | ------------ | ---- |
+| `ca-movie-finder-staging`       | `movie-finder-backend:sha8`  | staging    | min=0, max=2 | 8000 |
+| `ca-movie-finder-production`    | `movie-finder-backend:v*`    | production | min=1, max=4 | 8000 |
+| `movie-finder-frontend-staging` | `movie-finder-frontend:sha8` | staging    | min=1, max=3 | 80   |
+| `movie-finder-frontend`         | `movie-finder-frontend:v*`   | production | min=1, max=5 | 80   |
 
 > Backend replicas are no longer capped at 1 — PostgreSQL supports concurrent connections from multiple replicas. Scale as needed based on load.
 
 ### 14.3 Backend Container App environment variables
 
-| Variable | Source | Notes |
-|---|---|---|
-| `APP_ENV` | Inline | `staging` or `production` |
-| `APP_PORT` | Inline | `8000` |
-| `QDRANT_COLLECTION_NAME` | Inline | `movies` |
-| `EMBEDDING_MODEL` | Inline | `text-embedding-3-large` |
-| `EMBEDDING_DIMENSION` | Inline | `3072` |
-| `RAG_TOP_K` | Inline | `8` |
-| `MAX_REFINEMENTS` | Inline | `3` |
-| `IMDB_SEARCH_LIMIT` | Inline | `3` (imdbapi.dev requires no API key) |
-| `CONFIDENCE_THRESHOLD` | Inline | `0.3` |
-| `LOG_LEVEL` | Inline | `INFO` |
-| `LANGSMITH_TRACING` | Inline | `false` (enable for debugging) |
-| `APP_SECRET_KEY` | Key Vault | JWT signing key |
-| `DATABASE_URL` | Key Vault | `postgresql://user:pass@pg-server:5432/dbname` |
-| `ANTHROPIC_API_KEY` | Key Vault | Claude models |
-| `OPENAI_API_KEY` | Key Vault | OpenAI embeddings |
-| `QDRANT_URL` | Key Vault | Qdrant Cloud cluster URL |
-| `QDRANT_API_KEY_RO` | Key Vault | Qdrant read-only API key (runtime) |
+| Variable                 | Source    | Notes                                          |
+| ------------------------ | --------- | ---------------------------------------------- |
+| `APP_ENV`                | Inline    | `staging` or `production`                      |
+| `APP_PORT`               | Inline    | `8000`                                         |
+| `QDRANT_COLLECTION_NAME` | Inline    | `movies`                                       |
+| `EMBEDDING_MODEL`        | Inline    | `text-embedding-3-large`                       |
+| `EMBEDDING_DIMENSION`    | Inline    | `3072`                                         |
+| `RAG_TOP_K`              | Inline    | `8`                                            |
+| `MAX_REFINEMENTS`        | Inline    | `3`                                            |
+| `IMDB_SEARCH_LIMIT`      | Inline    | `3` (imdbapi.dev requires no API key)          |
+| `CONFIDENCE_THRESHOLD`   | Inline    | `0.3`                                          |
+| `LOG_LEVEL`              | Inline    | `INFO`                                         |
+| `LANGSMITH_TRACING`      | Inline    | `false` (enable for debugging)                 |
+| `APP_SECRET_KEY`         | Key Vault | JWT signing key                                |
+| `DATABASE_URL`           | Key Vault | `postgresql://user:pass@pg-server:5432/dbname` |
+| `ANTHROPIC_API_KEY`      | Key Vault | Claude models                                  |
+| `OPENAI_API_KEY`         | Key Vault | OpenAI embeddings                              |
+| `QDRANT_URL`             | Key Vault | Qdrant Cloud cluster URL                       |
+| `QDRANT_API_KEY_RO`      | Key Vault | Qdrant read-only API key (runtime)             |
 
 ### 14.4 Docker image tag strategy
 
-| Tag | When pushed | Deployed to |
-|---|---|---|
-| `:sha8` (e.g. `:a1b2c3d4`) | Every `main` push + every tag | Staging (auto for backend, manual for frontend) |
-| `:latest` | Every `main` push | Never deployed directly — used as `--cache-from` seed |
-| `:v1.2.3` | Every `v*` tag | Production (after approval) |
+| Tag                        | When pushed                   | Deployed to                                           |
+| -------------------------- | ----------------------------- | ----------------------------------------------------- |
+| `:sha8` (e.g. `:a1b2c3d4`) | Every `main` push + every tag | Staging (auto for backend, manual for frontend)       |
+| `:latest`                  | Every `main` push             | Never deployed directly — used as `--cache-from` seed |
+| `:v1.2.3`                  | Every `v*` tag                | Production (after approval)                           |
 
 Images are always deployed by the **immutable `:sha8`** tag. `:latest` exists only as a layer cache seed for CI builds — never reference it in `az containerapp update`.
 
 ### 14.5 Troubleshooting
 
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| Webhook not received | ngrok URL changed | Get new URL via `/api/tunnels`, update GitHub webhook |
-| `docker login` fails | `acr-credentials` wrong | Verify SP App ID + secret in Jenkins credentials |
-| `az login` fails | `azure-sp` wrong or SP expired | Re-create SP with `provision.sh`, update Jenkins |
-| Backend 500 on startup | Missing Key Vault secret | Check `az keyvault secret list --vault-name kv-...` |
-| Backend can't reach DB | `DATABASE_URL` wrong | Verify Key Vault secret; check PG server firewall rules |
-| Frontend shows blank page | `BACKEND_URL` wrong | Update with `az containerapp update --set-env-vars` |
-| PG connection refused in CI | postgres sidecar not ready | Check `pg_isready` loop in Test — app Jenkinsfile stage |
-| Build takes 10+ min | No `--cache-from` layer hit | Ensure `:latest` was pushed and ACR is accessible |
+| Symptom                     | Likely cause                   | Fix                                                     |
+| --------------------------- | ------------------------------ | ------------------------------------------------------- |
+| Webhook not received        | ngrok URL changed              | Get new URL via `/api/tunnels`, update GitHub webhook   |
+| `docker login` fails        | `acr-credentials` wrong        | Verify SP App ID + secret in Jenkins credentials        |
+| `az login` fails            | `azure-sp` wrong or SP expired | Re-create SP with `provision.sh`, update Jenkins        |
+| Backend 500 on startup      | Missing Key Vault secret       | Check `az keyvault secret list --vault-name kv-...`     |
+| Backend can't reach DB      | `DATABASE_URL` wrong           | Verify Key Vault secret; check PG server firewall rules |
+| Frontend shows blank page   | `BACKEND_URL` wrong            | Update with `az containerapp update --set-env-vars`     |
+| PG connection refused in CI | postgres sidecar not ready     | Check `pg_isready` loop in Test — app Jenkinsfile stage |
+| Build takes 10+ min         | No `--cache-from` layer hit    | Ensure `:latest` was pushed and ACR is accessible       |

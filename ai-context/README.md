@@ -6,10 +6,10 @@ Shared reference for AI agents working in this repo standalone.
 
 Open `docs/` as your workspace, then type `/`:
 
-| Command | Usage |
-|---|---|
-| `/implement [issue-number]` | Implement a docs issue |
-| `/review-pr [pr-number]` | Review a PR in this repo |
+| Command                     | Usage                    |
+| --------------------------- | ------------------------ |
+| `/implement [issue-number]` | Implement a docs issue   |
+| `/review-pr [pr-number]`    | Review a PR in this repo |
 
 ## Prompts (Codex CLI / Gemini CLI / Ollama)
 
@@ -17,6 +17,7 @@ Open `docs/` as your workspace, then type `/`:
 - `ai-context/prompts/review-pr.md` — review workflow
 
 Usage:
+
 ```bash
 cat ai-context/prompts/implement.md
 gh pr diff N --repo aharbii/movie-finder-docs > /tmp/pr.txt

@@ -9,9 +9,8 @@ description: UML architecture diagrams for Movie Finder — class, component, se
 Source files (`*.puml`) are in [`docs/architecture/plantuml/`](https://github.com/aharbii/movie-finder-docs/tree/main/architecture/plantuml).
 
 !!! tip "Rendering locally"
-    ```bash
-    # Render all diagrams to PNG
-    plantuml -png docs/architecture/plantuml/*.puml
+```bash # Render all diagrams to PNG
+plantuml -png docs/architecture/plantuml/\*.puml
 
     # Or run via the doc-prep script (recommended)
     ./scripts/prepare-docs.sh
@@ -19,8 +18,8 @@ Source files (`*.puml`) are in [`docs/architecture/plantuml/`](https://github.co
     Install: `brew install plantuml graphviz` (macOS) · `sudo apt install plantuml graphviz` (Ubuntu)
 
 !!! note "VS Code preview"
-    Open any `.puml` file and press `Option+D` (macOS) / `Alt+D` (Windows/Linux) for a live preview panel.
-    The **jebbs.plantuml** extension is pre-configured in `.vscode/settings.json`.
+Open any `.puml` file and press `Option+D` (macOS) / `Alt+D` (Windows/Linux) for a live preview panel.
+The **jebbs.plantuml** extension is pre-configured in `.vscode/settings.json`.
 
 ---
 
@@ -108,17 +107,17 @@ Container Apps environment, PostgreSQL Flexible Server, ACR, Key Vault, Qdrant C
 
 Diagrams include inline `⚠ Issue #N` annotations. Quick reference:
 
-| GitHub Issue | Severity | Diagrams |
-|---|---|---|
-| [#2 MemorySaver non-persistent](https://github.com/aharbii/movie-finder/issues/2) | Critical | 04, 09, 10 |
-| [#3 No Alembic migrations](https://github.com/aharbii/movie-finder/issues/3) | Critical | 03, 10 |
-| [#4 No rate limiting](https://github.com/aharbii/movie-finder/issues/4) | High | 02, 03, 08 |
-| [#5 Refresh token not revocable](https://github.com/aharbii/movie-finder/issues/5) | High | 01, 07 |
-| [#7 Clients recreated per node](https://github.com/aharbii/movie-finder/issues/7) | High | 04, 09 |
-| [#8 IMDb retry 30 s delay](https://github.com/aharbii/movie-finder/issues/8) | High | 04, 09 |
-| [#9 No CORS middleware](https://github.com/aharbii/movie-finder/issues/9) | Medium | 02, 03, 08, 10 |
-| [#10 confirmed_movie as TEXT](https://github.com/aharbii/movie-finder/issues/10) | Medium | 01, 03, 10 |
-| [#12 UserInDB exposes hash](https://github.com/aharbii/movie-finder/issues/12) | Medium | 03, 07 |
-| [#14 Shared Qdrant cluster](https://github.com/aharbii/movie-finder/issues/14) | Medium | 02, 10 |
-| [#15 total=False TypedDict](https://github.com/aharbii/movie-finder/issues/15) | Low | 01, 04 |
-| [#17 ngrok for webhooks](https://github.com/aharbii/movie-finder/issues/17) | Low | 02, 10 |
+| GitHub Issue                                                                       | Severity | Diagrams       |
+| ---------------------------------------------------------------------------------- | -------- | -------------- |
+| [#2 MemorySaver non-persistent](https://github.com/aharbii/movie-finder/issues/2)  | Critical | 04, 09, 10     |
+| [#3 No Alembic migrations](https://github.com/aharbii/movie-finder/issues/3)       | Critical | 03, 10         |
+| [#4 No rate limiting](https://github.com/aharbii/movie-finder/issues/4)            | High     | 02, 03, 08     |
+| [#5 Refresh token not revocable](https://github.com/aharbii/movie-finder/issues/5) | High     | 01, 07         |
+| [#7 Clients recreated per node](https://github.com/aharbii/movie-finder/issues/7)  | High     | 04, 09         |
+| [#8 IMDb retry 30 s delay](https://github.com/aharbii/movie-finder/issues/8)       | High     | 04, 09         |
+| [#9 No CORS middleware](https://github.com/aharbii/movie-finder/issues/9)          | Medium   | 02, 03, 08, 10 |
+| [#10 confirmed_movie as TEXT](https://github.com/aharbii/movie-finder/issues/10)   | Medium   | 01, 03, 10     |
+| [#12 UserInDB exposes hash](https://github.com/aharbii/movie-finder/issues/12)     | Medium   | 03, 07         |
+| [#14 Shared Qdrant cluster](https://github.com/aharbii/movie-finder/issues/14)     | Medium   | 02, 10         |
+| [#15 total=False TypedDict](https://github.com/aharbii/movie-finder/issues/15)     | Low      | 01, 04         |
+| [#17 ngrok for webhooks](https://github.com/aharbii/movie-finder/issues/17)        | Low      | 02, 10         |

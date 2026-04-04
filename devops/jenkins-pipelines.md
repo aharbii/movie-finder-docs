@@ -8,13 +8,13 @@
 
 ## Which repos have CI pipelines
 
-| Repo | Jenkinsfile location | Image published to ACR? | Pipeline type |
-|---|---|---|---|
-| `movie-finder-backend` | `backend/Jenkinsfile` | **Yes** — `movie-finder-backend` | Multibranch — CONTRIBUTION / INTEGRATION / RELEASE |
-| `movie-finder-frontend` | `frontend/Jenkinsfile` | **Yes** — `movie-finder-frontend` | Multibranch — CONTRIBUTION / INTEGRATION / RELEASE |
-| `movie-finder-chain` | `chain/Jenkinsfile` | No — internal library | Multibranch — PR validation + Dockerfile smoke |
-| `imdbapi-client` | `imdbapi/Jenkinsfile` | No — internal library | Multibranch — PR validation + Dockerfile smoke |
-| `movie-finder-rag` | `rag_ingestion/Jenkinsfile` | No — offline tool | Multibranch — PR validation + manual ingest trigger |
+| Repo                    | Jenkinsfile location        | Image published to ACR?           | Pipeline type                                       |
+| ----------------------- | --------------------------- | --------------------------------- | --------------------------------------------------- |
+| `movie-finder-backend`  | `backend/Jenkinsfile`       | **Yes** — `movie-finder-backend`  | Multibranch — CONTRIBUTION / INTEGRATION / RELEASE  |
+| `movie-finder-frontend` | `frontend/Jenkinsfile`      | **Yes** — `movie-finder-frontend` | Multibranch — CONTRIBUTION / INTEGRATION / RELEASE  |
+| `movie-finder-chain`    | `chain/Jenkinsfile`         | No — internal library             | Multibranch — PR validation + Dockerfile smoke      |
+| `imdbapi-client`        | `imdbapi/Jenkinsfile`       | No — internal library             | Multibranch — PR validation + Dockerfile smoke      |
+| `movie-finder-rag`      | `rag_ingestion/Jenkinsfile` | No — offline tool                 | Multibranch — PR validation + manual ingest trigger |
 
 ---
 
@@ -38,12 +38,12 @@ GitHub pushes webhook ──► Jenkins ──► Multibranch Pipeline job
 Jenkins automatically discovers branches and open PRs via the **GitHub Branch Source** plugin.
 Each branch or PR becomes a child job inside the Multibranch job:
 
-| Child job name | Trigger | When created |
-|---|---|---|
-| `main` | Push to `main` | Always exists |
+| Child job name     | Trigger                | When created        |
+| ------------------ | ---------------------- | ------------------- |
+| `main`             | Push to `main`         | Always exists       |
 | `feature/my-thing` | Push to feature branch | While branch exists |
-| `PR-42` | PR opened or updated | While PR is open |
-| `v1.2.3` | Tag `v1.2.3` pushed | Once per tag |
+| `PR-42`            | PR opened or updated   | While PR is open    |
+| `v1.2.3`           | Tag `v1.2.3` pushed    | Once per tag        |
 
 ---
 
@@ -77,13 +77,13 @@ stage('Ingest') {
 
 **Summary:**
 
-| What triggered the build | `env.BRANCH_NAME` | `buildingTag()` | `env.CHANGE_ID` |
-|---|---|---|---|
-| PR opened / updated | `PR-N` | `false` | `N` (PR number) |
-| Push to feature branch | branch name | `false` | *(not set)* |
-| Push to `main` | `main` | `false` | *(not set)* |
-| Tag `v1.2.3` pushed | *(tag name)* | `true` | *(not set)* |
-| "Build with Parameters" | whatever branch is selected | as above | *(not set)* |
+| What triggered the build | `env.BRANCH_NAME`           | `buildingTag()` | `env.CHANGE_ID` |
+| ------------------------ | --------------------------- | --------------- | --------------- |
+| PR opened / updated      | `PR-N`                      | `false`         | `N` (PR number) |
+| Push to feature branch   | branch name                 | `false`         | _(not set)_     |
+| Push to `main`           | `main`                      | `false`         | _(not set)_     |
+| Tag `v1.2.3` pushed      | _(tag name)_                | `true`          | _(not set)_     |
+| "Build with Parameters"  | whatever branch is selected | as above        | _(not set)_     |
 
 So a stage guarded by `when { branch 'main' }` runs for main-branch pushes but **not** for PR builds
 even if the PR targets `main`. This is the correct behaviour — you don't want to push an image
@@ -144,13 +144,13 @@ Each repo has its own GitHub ruleset (already configured for `main`). To add CI 
 
 ### Per-repo expected context names (approximate — verify after first build)
 
-| Repo | Expected context name |
-|---|---|
-| `movie-finder-backend` | `continuous-integration/jenkins/pr-merge` |
+| Repo                    | Expected context name                     |
+| ----------------------- | ----------------------------------------- |
+| `movie-finder-backend`  | `continuous-integration/jenkins/pr-merge` |
 | `movie-finder-frontend` | `continuous-integration/jenkins/pr-merge` |
-| `movie-finder-chain` | `continuous-integration/jenkins/pr-merge` |
-| `imdbapi-client` | `continuous-integration/jenkins/pr-merge` |
-| `movie-finder-rag` | `continuous-integration/jenkins/pr-merge` |
+| `movie-finder-chain`    | `continuous-integration/jenkins/pr-merge` |
+| `imdbapi-client`        | `continuous-integration/jenkins/pr-merge` |
+| `movie-finder-rag`      | `continuous-integration/jenkins/pr-merge` |
 
 > These are defaults. If you have customized `githubNotify()` calls in the Jenkinsfile or use a
 > non-default GitHub Branch Source configuration, the actual context name will differ. Always
@@ -178,6 +178,7 @@ own Multibranch Pipeline jobs:
 ### imdbapi-client
 
 Same as chain except:
+
 - Name: `imdbapi-client`
 - Repository URL: `https://github.com/aharbii/imdbapi-client.git`
 - Script path: `Jenkinsfile`
@@ -185,6 +186,7 @@ Same as chain except:
 ### movie-finder-rag
 
 Same as chain except:
+
 - Name: `movie-finder-rag`
 - Repository URL: `https://github.com/aharbii/movie-finder-rag.git`
 - Script path: `Jenkinsfile`

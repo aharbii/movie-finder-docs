@@ -38,7 +38,7 @@ docs/
     └── agent-queries.md              Open questions for component agents
 ```
 
-Files marked *(generated)* are copied from the relevant submodule README at build time by `scripts/prepare-docs.sh` or the GitHub Actions workflow. They are not committed to this repository.
+Files marked _(generated)_ are copied from the relevant submodule README at build time by `scripts/prepare-docs.sh` or the GitHub Actions workflow. They are not committed to this repository.
 
 ---
 
@@ -47,16 +47,12 @@ Files marked *(generated)* are copied from the relevant submodule README at buil
 ### Option A — MkDocs (full site, recommended)
 
 ```bash
-# From the repo root
-pip install -r requirements-docs.txt
-
-# Populate generated pages from submodules first
-./scripts/prepare-docs.sh
-
-# Serve locally
-mkdocs serve
-# Open: http://127.0.0.1:8000
+# From the repo root — builds everything and serves with live-reload
+make mkdocs
+# Open: http://localhost:8001
 ```
+
+`make mkdocs` runs `scripts/prepare-docs.sh` (copies submodule READMEs, renders PlantUML PNGs) and then starts MkDocs — all inside the Docker container. No local Python or PlantUML install required.
 
 ### Option B — GitHub Pages
 
@@ -102,10 +98,10 @@ docker run -it --rm -p 18080:8080 \
 
 ## Document ownership
 
-| Document | Owner | Update trigger |
-|----------|-------|----------------|
-| `api/openapi.yaml` | Backend / App team | Any API change |
-| `architecture/workspace.dsl` | Architecture lead | New containers or flows |
-| `architecture/architecture.mdj` | Architecture lead | New classes or sequences |
-| `architecture/decisions/*.md` | Proposing team | New significant decision |
-| `devops/setup.md` | DevOps / Platform | Infrastructure or CI changes |
+| Document                        | Owner              | Update trigger               |
+| ------------------------------- | ------------------ | ---------------------------- |
+| `api/openapi.yaml`              | Backend / App team | Any API change               |
+| `architecture/workspace.dsl`    | Architecture lead  | New containers or flows      |
+| `architecture/architecture.mdj` | Architecture lead  | New classes or sequences     |
+| `architecture/decisions/*.md`   | Proposing team     | New significant decision     |
+| `devops/setup.md`               | DevOps / Platform  | Infrastructure or CI changes |

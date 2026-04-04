@@ -76,22 +76,22 @@ the correct `.git` path regardless of nesting.
 
 Every Python repo exposes the same target vocabulary:
 
-| Target | What it does |
-|---|---|
-| `make init` | Build image, copy `.env`, install git hook |
-| `make editor-up` | Start dev container for VS Code attach |
-| `make editor-down` | Stop dev container |
-| `make shell` | Open zsh shell in container |
-| `make lint` | `ruff check` — report only, no modifications |
-| `make fix` | `ruff check --fix` + `ruff format` — auto-apply all safe fixes |
-| `make format` | `ruff format` — format only |
-| `make typecheck` | `mypy` (strict) |
-| `make test` | `pytest` |
-| `make test-coverage` | `pytest` with XML + HTML + JUnit coverage output |
-| `make detect-secrets` | `detect-secrets scan --baseline .secrets.baseline` |
-| `make pre-commit` | Full hook suite (runs on `git commit` via installed hook) |
-| `make check` | `lint` + `typecheck` + `test-coverage` — CI gate |
-| `make ci-down` | Full teardown with volume + image removal for CI cleanup |
+| Target                | What it does                                                   |
+| --------------------- | -------------------------------------------------------------- |
+| `make init`           | Build image, copy `.env`, install git hook                     |
+| `make editor-up`      | Start dev container for VS Code attach                         |
+| `make editor-down`    | Stop dev container                                             |
+| `make shell`          | Open zsh shell in container                                    |
+| `make lint`           | `ruff check` — report only, no modifications                   |
+| `make fix`            | `ruff check --fix` + `ruff format` — auto-apply all safe fixes |
+| `make format`         | `ruff format` — format only                                    |
+| `make typecheck`      | `mypy` (strict)                                                |
+| `make test`           | `pytest`                                                       |
+| `make test-coverage`  | `pytest` with XML + HTML + JUnit coverage output               |
+| `make detect-secrets` | `detect-secrets scan --baseline .secrets.baseline`             |
+| `make pre-commit`     | Full hook suite (runs on `git commit` via installed hook)      |
+| `make check`          | `lint` + `typecheck` + `test-coverage` — CI gate               |
+| `make ci-down`        | Full teardown with volume + image removal for CI cleanup       |
 
 ### 5. Lean dev Dockerfiles
 
@@ -115,6 +115,7 @@ Port 18080 avoids conflicts with Jenkins (8080) and FastAPI (8000).
 ## Consequences
 
 **Positive:**
+
 - Consistent onboarding: `make init && make editor-up` works in every Python repo.
 - Interactive dev is fast: `make lint`/`make check` use `docker compose exec` and complete
   in under 2 seconds when the editor container is running.
@@ -124,6 +125,7 @@ Port 18080 avoids conflicts with Jenkins (8080) and FastAPI (8000).
 - Single compose file — no `-f docker-compose.docs.yml` to remember.
 
 **Negative:**
+
 - Docker must be running for any developer command, including `make lint`. Developers cannot
   run quality checks without Docker.
 - `make fix` modifies files in-place — developers must stage the resulting changes before

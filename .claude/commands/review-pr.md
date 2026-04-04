@@ -20,6 +20,7 @@ gh pr diff $ARGUMENTS --repo aharbii/movie-finder-docs
 ## Blocking findings
 
 **Docs-specific:**
+
 - PNG files committed (PNGs are gitignored — only `.puml` source files)
 - `.mdj` StarUML file generated programmatically (manual-only format)
 - `mkdocs build --strict` fails (check if noted in PR)

@@ -15,8 +15,8 @@ MkDocs documentation site hosted on GitHub Pages. Contains:
 - Service READMEs (copied from submodules by `prepare-docs.sh`)
 - Internal team docs (contributing, onboarding)
 
-**Always run `./scripts/prepare-docs.sh` (from the root repo) before `mkdocs serve`.**
-That script copies submodule READMEs, rewrites their relative links, and renders PlantUML PNGs.
+**Always run `make mkdocs` from the root repo** to view the full site.
+That target runs `scripts/prepare-docs.sh` (copies submodule READMEs, renders PlantUML PNGs) then serves MkDocs at http://localhost:8001 — no local Python or PlantUML install needed.
 
 ---
 
@@ -24,23 +24,24 @@ That script copies submodule READMEs, rewrites their relative links, and renders
 
 ### PlantUML diagrams (`architecture/plantuml/`)
 
-| File | Content | When to update |
-|---|---|---|
-| `01-domain-model.puml` | Entities: User, Session, Message, MovieCandidate, State | Domain model changes |
-| `02-system-architecture.puml` | High-level system overview | New external systems |
-| `03-backend-architecture.puml` | Backend internal structure | New backend components |
-| `04-langgraph-pipeline.puml` | LangGraph 8-node pipeline flow | Node additions or removals |
-| `05-langgraph-statemachine.puml` | State machine transitions | State or phase changes |
-| `06-frontend-architecture.puml` | Angular component structure | New UI components |
-| `07-seq-authentication.puml` | Auth sequence (login, refresh) | Auth flow changes |
-| `08-seq-chat-sse.puml` | Chat SSE streaming sequence | SSE event or API changes |
-| `09-seq-langgraph-execution.puml` | Full pipeline execution | Pipeline flow changes |
-| `10-deployment-azure.puml` | Azure deployment topology | Infrastructure changes |
+| File                              | Content                                                 | When to update             |
+| --------------------------------- | ------------------------------------------------------- | -------------------------- |
+| `01-domain-model.puml`            | Entities: User, Session, Message, MovieCandidate, State | Domain model changes       |
+| `02-system-architecture.puml`     | High-level system overview                              | New external systems       |
+| `03-backend-architecture.puml`    | Backend internal structure                              | New backend components     |
+| `04-langgraph-pipeline.puml`      | LangGraph 8-node pipeline flow                          | Node additions or removals |
+| `05-langgraph-statemachine.puml`  | State machine transitions                               | State or phase changes     |
+| `06-frontend-architecture.puml`   | Angular component structure                             | New UI components          |
+| `07-seq-authentication.puml`      | Auth sequence (login, refresh)                          | Auth flow changes          |
+| `08-seq-chat-sse.puml`            | Chat SSE streaming sequence                             | SSE event or API changes   |
+| `09-seq-langgraph-execution.puml` | Full pipeline execution                                 | Pipeline flow changes      |
+| `10-deployment-azure.puml`        | Azure deployment topology                               | Infrastructure changes     |
 
 **Rules:**
+
 - Edit `.puml` source files — PNGs are generated at build time (gitignored)
-- Render locally: `plantuml -png docs/architecture/plantuml/*.puml`
-- VSCode preview: `Option+D` / `Alt+D` with `jebbs.plantuml` extension
+- Render full site: `make mkdocs` from repo root (handles PlantUML automatically)
+- VSCode live preview: `Option+D` / `Alt+D` with `jebbs.plantuml` extension
 - **Never generate `.mdj` StarUML files programmatically** — user syncs from `.puml` to StarUML manually
 
 ### Structurizr C4 (`architecture/workspace.dsl`)
@@ -51,11 +52,13 @@ External systems modelled: Qdrant Cloud, Anthropic API, OpenAI API, imdbapi.dev,
 Azure Container Registry, Jenkins.
 
 **View locally:**
+
 ```bash
 docker compose --profile docs up structurizr   # → http://localhost:18080
 ```
 
 Update `workspace.dsl` when:
+
 - A new external system is integrated
 - A container is added, renamed, or removed
 - Component-level relations change significantly
@@ -64,12 +67,13 @@ Update `workspace.dsl` when:
 
 ### Architecture Decision Records (`architecture/decisions/`)
 
-| File | Status |
-|---|---|
-| `index.md` | ADR index + blank template |
+| File                              | Status                            |
+| --------------------------------- | --------------------------------- |
+| `index.md`                        | ADR index + blank template        |
 | `ADR-001-initial-architecture.md` | Accepted — foundational decisions |
 
 **When to write an ADR:**
+
 - Adopting a new external dependency or cloud service
 - Changing the tech stack at any layer
 - New design pattern introduced project-wide
@@ -78,6 +82,7 @@ Update `workspace.dsl` when:
 - Anything a future engineer would ask: "why did they do it this way?"
 
 **How to create an ADR:**
+
 1. Copy the template from `architecture/decisions/index.md`
 2. Name it `ADR-NNN-short-title.md` (NNN is the next sequential number)
 3. Set status: `Proposed` → get review → `Accepted`
@@ -90,16 +95,16 @@ Update `workspace.dsl` when:
 
 ### Submodule map
 
-| Path | GitHub repo | Role |
-|---|---|---|
-| `.` (root) | `aharbii/movie-finder` | Parent — all cross-repo issues |
-| `backend/` | `aharbii/movie-finder-backend` | FastAPI + uv workspace root |
-| `backend/chain/` | `aharbii/movie-finder-chain` | LangGraph AI pipeline |
-| `backend/chain/imdbapi/` | `aharbii/imdbapi-client` | Async IMDb REST client |
-| `backend/rag_ingestion/` | `aharbii/movie-finder-rag` | Offline embedding ingestion |
-| `frontend/` | `aharbii/movie-finder-frontend` | Angular 21 SPA |
-| `docs/` | `aharbii/movie-finder-docs` | **← you are here** |
-| `infrastructure/` | `aharbii/movie-finder-infrastructure` | IaC / Azure provisioning |
+| Path                     | GitHub repo                           | Role                           |
+| ------------------------ | ------------------------------------- | ------------------------------ |
+| `.` (root)               | `aharbii/movie-finder`                | Parent — all cross-repo issues |
+| `backend/`               | `aharbii/movie-finder-backend`        | FastAPI + uv workspace root    |
+| `backend/chain/`         | `aharbii/movie-finder-chain`          | LangGraph AI pipeline          |
+| `backend/chain/imdbapi/` | `aharbii/imdbapi-client`              | Async IMDb REST client         |
+| `backend/rag_ingestion/` | `aharbii/movie-finder-rag`            | Offline embedding ingestion    |
+| `frontend/`              | `aharbii/movie-finder-frontend`       | Angular 21 SPA                 |
+| `docs/`                  | `aharbii/movie-finder-docs`           | **← you are here**             |
+| `infrastructure/`        | `aharbii/movie-finder-infrastructure` | IaC / Azure provisioning       |
 
 ---
 
@@ -147,21 +152,23 @@ Conventional Commits: `docs(architecture): update C4 container diagram for Gemin
 
 ## Cross-cutting change checklist
 
-| # | Category | Key gate |
-|---|---|---|
-| 1 | **Issues** | Parent `aharbii/movie-finder` + child here only if this repo changes; templates inspected |
-| 2 | **Branch** | `docs/<kebab>` in this repo + pointer-bump `chore/` in root `movie-finder` |
-| 3 | **Diagrams** | Edit `.puml` source (not `.png`); verify with `plantuml -png`; `workspace.dsl` updated if C4 changed; Structurizr verified; **no `.mdj` generated** |
-| 4 | **ADR** | Follows template from `decisions/index.md`; status `Proposed`; index updated |
-| 5 | **Content** | `./scripts/prepare-docs.sh` clean; `mkdocs serve` renders correctly; no broken links |
+| #   | Category     | Key gate                                                                                                                                                 |
+| --- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Issues**   | Parent `aharbii/movie-finder` + child here only if this repo changes; templates inspected                                                                |
+| 2   | **Branch**   | `docs/<kebab>` in this repo + pointer-bump `chore/` in root `movie-finder`                                                                               |
+| 3   | **Diagrams** | Edit `.puml` source (not `.png`); verify with `make mkdocs`; `workspace.dsl` updated if C4 changed; `make structurizr` verified; **no `.mdj` generated** |
+| 4   | **ADR**      | Follows template from `decisions/index.md`; status `Proposed`; index updated                                                                             |
+| 5   | **Content**  | `make mkdocs` runs clean; no broken links in terminal output                                                                                             |
 
 ### 6. Submodule pointer bump
+
 ```bash
 # in root movie-finder
 git add docs && git commit -m "docs: bump to latest main"
 ```
 
 ### 7. Pull request
+
 - [ ] PR in `aharbii/movie-finder-docs` discloses the AI authoring tool + model
 - [ ] PR in `aharbii/movie-finder` (pointer bump)
 - [ ] Any AI-assisted review comment or approval discloses the review tool + model

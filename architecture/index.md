@@ -7,38 +7,46 @@ description: Movie Finder system architecture — C4 model, PlantUML diagrams, a
 
 This section documents the Movie Finder architecture at multiple levels of detail.
 
-| File / Section | Format | Purpose |
-|---|---|---|
+| File / Section                                                                                       | Format               | Purpose                                                        |
+| ---------------------------------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------- |
 | [`workspace.dsl`](https://github.com/aharbii/movie-finder-docs/blob/main/architecture/workspace.dsl) | Structurizr DSL (C4) | L1 System Context · L2 Containers · L3 Components · Deployment |
-| [PlantUML Diagrams](plantuml/index.md) | PlantUML (`.puml`) | Class · Component · Sequence · State · Deployment diagrams |
-| [`decisions/`](decisions/index.md) | Markdown ADRs | Architecture decision records |
+| [PlantUML Diagrams](plantuml/index.md)                                                               | PlantUML (`.puml`)   | Class · Component · Sequence · State · Deployment diagrams     |
+| [`decisions/`](decisions/index.md)                                                                   | Markdown ADRs        | Architecture decision records                                  |
 
 ---
 
-## How to render diagrams
+## Diagram tooling — why three tools
 
-=== "PlantUML (UML diagrams)"
+| Tool            | Files                          | Purpose                                                                           | When to edit                                                                 |
+| --------------- | ------------------------------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **PlantUML**    | `architecture/plantuml/*.puml` | Canonical UML: class, component, sequence, state, deployment                      | Every architectural change — these are the source of truth                   |
+| **Structurizr** | `architecture/workspace.dsl`   | C4 model (L1–L3 + deployment views) for stakeholder-facing architecture overviews | When containers, components, or external systems are added or renamed        |
+| **StarUML**     | Not in the repo                | Stakeholder export format — never generated programmatically                      | Maintained manually by the project owner from the `.puml` and `.dsl` sources |
+
+PlantUML and Structurizr are both committed as source. StarUML is a manual export used for offline stakeholder reviews; **never commit `.mdj` files**.
+
+---
+
+## How to view diagrams
+
+=== "Full documentation site (recommended)"
 
     ```bash
-    # Prerequisite — install once
-    brew install plantuml graphviz        # macOS
-    sudo apt install plantuml graphviz    # Ubuntu/Debian
-
-    # Render all 10 diagrams to PNG
-    plantuml -png docs/architecture/plantuml/*.puml
-
-    # Or let the doc-prep script handle it
-    ./scripts/prepare-docs.sh
+    # from repo root — builds everything including PlantUML PNGs and serves MkDocs
+    make mkdocs
+    # → http://localhost:8001
     ```
 
-    **VS Code:** open any `.puml` and press `Option+D` / `Alt+D` for live preview
+=== "PlantUML — VS Code live preview"
+
+    Open any `.puml` file and press `Option+D` / `Alt+D`
     (requires the **jebbs.plantuml** extension, pre-configured in `.vscode/settings.json`).
 
-=== "Structurizr (C4 model)"
+=== "Structurizr — C4 viewer"
 
     ```bash
     # from repo root
-    docker compose --profile docs up structurizr
+    make structurizr
     # → http://localhost:18080
     ```
 
@@ -64,13 +72,13 @@ User ──────────────►│  Angular SPA  ←→  Fast
                                imdbapi.dev
 ```
 
-| External System | Purpose | Auth |
-|---|---|---|
-| Qdrant Cloud | Vector similarity search over movie corpus | API key |
-| Anthropic Claude | Haiku: classification · Sonnet: refinement + Q&A | API key |
-| OpenAI | `text-embedding-3-large` at query time and ingestion | API key |
-| imdbapi.dev | Live IMDb metadata — ratings, posters, credits | None |
-| Azure Key Vault | Runtime secrets via managed identity | Managed identity |
+| External System  | Purpose                                              | Auth             |
+| ---------------- | ---------------------------------------------------- | ---------------- |
+| Qdrant Cloud     | Vector similarity search over movie corpus           | API key          |
+| Anthropic Claude | Haiku: classification · Sonnet: refinement + Q&A     | API key          |
+| OpenAI           | `text-embedding-3-large` at query time and ingestion | API key          |
+| imdbapi.dev      | Live IMDb metadata — ratings, posters, credits       | None             |
+| Azure Key Vault  | Runtime secrets via managed identity                 | Managed identity |
 
 ---
 
@@ -176,13 +184,13 @@ GitHub ──webhook──► Jenkins (Ubuntu + ngrok)
 
 The most impactful known issues affecting this architecture:
 
-| # | Issue | Severity |
-|---|---|---|
-| [#2](https://github.com/aharbii/movie-finder/issues/2) | `MemorySaver` non-persistent — breaks multi-replica deployments | **Critical** |
-| [#3](https://github.com/aharbii/movie-finder/issues/3) | Schema managed by raw DDL — no Alembic migrations, no indexes | **Critical** |
-| [#4](https://github.com/aharbii/movie-finder/issues/4) | No rate limiting on any API endpoint | **High** |
-| [#5](https://github.com/aharbii/movie-finder/issues/5) | Refresh tokens cannot be revoked | **High** |
-| [#7](https://github.com/aharbii/movie-finder/issues/7) | OpenAI + Qdrant clients re-created on every LangGraph node invocation | **High** |
-| [#8](https://github.com/aharbii/movie-finder/issues/8) | IMDb retry base delay 30 s — blocks SSE stream | **High** |
+| #                                                      | Issue                                                                 | Severity     |
+| ------------------------------------------------------ | --------------------------------------------------------------------- | ------------ |
+| [#2](https://github.com/aharbii/movie-finder/issues/2) | `MemorySaver` non-persistent — breaks multi-replica deployments       | **Critical** |
+| [#3](https://github.com/aharbii/movie-finder/issues/3) | Schema managed by raw DDL — no Alembic migrations, no indexes         | **Critical** |
+| [#4](https://github.com/aharbii/movie-finder/issues/4) | No rate limiting on any API endpoint                                  | **High**     |
+| [#5](https://github.com/aharbii/movie-finder/issues/5) | Refresh tokens cannot be revoked                                      | **High**     |
+| [#7](https://github.com/aharbii/movie-finder/issues/7) | OpenAI + Qdrant clients re-created on every LangGraph node invocation | **High**     |
+| [#8](https://github.com/aharbii/movie-finder/issues/8) | IMDb retry base delay 30 s — blocks SSE stream                        | **High**     |
 
 See the [PlantUML diagrams](plantuml/index.md) for a full annotated view of all issues in context.
