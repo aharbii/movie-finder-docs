@@ -28,11 +28,11 @@ skinparam EnumerationHeaderFontColor white
 package "Authentication" #FFF8F0 {
 
   class User {
-    + id : String <<UUID>>
+    + id : UUID
     + email : String <<UNIQUE>>
     - hashed_password : String <<bcrypt>>
-    + created_at : String <<ISO-8601>>
-    + last_login : String <<ISO-8601>>
+    + created_at : TIMESTAMPTZ
+    + last_login : TIMESTAMPTZ
     --
     + verify_password(plain : String) : Boolean
   }
@@ -46,8 +46,8 @@ package "Authentication" #FFF8F0 {
   note bottom of TokenPair
     access_token TTL: 30 minutes
     refresh_token TTL: 7 days
-    ⚠ Issue #5: refresh tokens
-    cannot be revoked (no blacklist)
+    refresh-token revocation is enforced
+    via refresh_token_blocklist keyed by jti
   end note
 
 }
@@ -58,27 +58,34 @@ package "Authentication" #FFF8F0 {
 package "Session & Messaging" #F0F4FF {
 
   class ChatSession {
-    + session_id : String <<UUID>>
-    + user_id : String <<FK → User>>
+    + session_id : UUID
+    + user_id : UUID <<FK → User>>
     + title : String
     + phase : String
-    + confirmed_movie : String <<TEXT/JSON>>
-    + created_at : String
-    + updated_at : String
+    + confirmed_movie : JSONB
+    + created_at : TIMESTAMPTZ
+    + updated_at : TIMESTAMPTZ
   }
 
   note bottom of ChatSession
-    ⚠ Issue #10: confirmed_movie stored as
-    TEXT, not JSONB — no server-side filtering
-    ⚠ Issue #11: no pagination on listing
+    Session metadata persists separately from
+    LangGraph checkpoints. confirmed_movie is
+    JSONB in PostgreSQL.
   end note
 
   class Message {
-    + id : String <<UUID>>
-    + session_id : String <<FK → ChatSession>>
+    + id : UUID
+    + session_id : UUID <<FK → ChatSession>>
     + role : String
     + content : String
-    + created_at : String
+    + created_at : TIMESTAMPTZ
+  }
+
+  class RefreshTokenBlocklist {
+    + jti : UUID <<PK>>
+    + user_id : UUID <<FK → User>>
+    + expires_at : TIMESTAMPTZ
+    + revoked_at : TIMESTAMPTZ
   }
 
 }
@@ -175,6 +182,7 @@ package "AI Pipeline State" #FFF0F8 {
 User "1" --> "0..*" ChatSession : owns >
 ChatSession "1" --> "0..*" Message : contains >
 ChatSession "0..1" --> "0..1" ConfirmedMovie : confirms >
+User "1" --> "0..*" RefreshTokenBlocklist : revoked tokens >
 
 User ..> TokenPair : receives on auth >
 

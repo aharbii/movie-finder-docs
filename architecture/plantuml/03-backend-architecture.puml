@@ -37,8 +37,12 @@ package "app (FastAPI Application Layer)" #F8F9FA {
   note right of FastAPIApp
     Lifespan initialises:
     1. SessionStore.connect() → asyncpg pool
-    2. compile_graph() → LangGraph CompiledGraph
-    Both stored as app.state singletons.
+    2. checkpoint_lifespan(DATABASE_URL) →
+       shared BaseCheckpointSaver
+    3. compile_graph(checkpointer=...) →
+       LangGraph CompiledGraph
+    All stored as app.state singletons and
+    closed cleanly on shutdown.
   end note
 
   ' ─────────────────────────────────────────────────────
@@ -57,6 +61,11 @@ package "app (FastAPI Application Layer)" #F8F9FA {
       + qdrant_endpoint : String
       + qdrant_api_key : String
       + qdrant_collection : String
+      + cors_origins : List<String>
+      + global_rate_limit : String
+      + auth_rate_limit : String
+      + chat_rate_limit : String
+      + max_message_length : Integer
     }
   }
 
@@ -71,7 +80,7 @@ package "app (FastAPI Application Layer)" #F8F9FA {
       + register(email, password) : TokenPair
       + login(email, password) : TokenPair
       + refresh(refresh_token) : TokenPair
-      + logout(user : User) : void
+      + logout(user : User, refresh_token) : void
     }
 
     class JWTMiddleware <<FastAPIDependency>> {
@@ -121,14 +130,13 @@ package "app (FastAPI Application Layer)" #F8F9FA {
     }
 
     note right of ChatRouter
-      ⚠ Issue #9: CORS middleware missing —
-      cross-origin requests blocked in prod.
-      ⚠ Issue #4: no rate limiting; endpoint
-      open to abuse / DoS.
-      ⚠ Issue #13: no input length validation
-      on the message field.
-      ⚠ Issue #11: get_sessions has no
-      pagination support.
+      Runtime controls:
+      • CORS origins configured explicitly
+      • route-level rate limits on auth and chat
+      • global fallback limit
+      • max message length validation on input
+      get_sessions still returns the full list
+      for the user (no pagination).
     end note
 
     class ChatRequest <<PydanticModel>> {
@@ -159,6 +167,8 @@ package "app (FastAPI Application Layer)" #F8F9FA {
       + close() : void
       + create_user(email, hashed_pw) : UserInDB
       + get_user_by_email(email) : UserInDB
+      + revoke_refresh_token(jti, user_id, expires_at) : void
+      + is_refresh_token_revoked(jti) : Boolean
       + get_or_create_session(session_id, user_id) : ChatSession
       + save_message(session_id, role, content) : void
       + get_session_history(session_id) : List<Message>
@@ -168,18 +178,28 @@ package "app (FastAPI Application Layer)" #F8F9FA {
     }
 
     note right of SessionStore
-      Manages 3 PostgreSQL tables:
+      Manages PostgreSQL application tables:
       • users (id, email, hashed_password, created_at)
       • sessions (session_id, user_id, title, phase,
-        confirmed_movie TEXT, created_at, updated_at)
+        confirmed_movie JSONB, created_at, updated_at)
       • messages (id, session_id, role, content, created_at)
-
-      ⚠ Issue #3: schema managed by raw DDL at startup.
-      No Alembic migrations, no DB indexes defined.
-      ⚠ Issue #10: confirmed_movie stored as TEXT,
-      should be JSONB for server-side filtering.
+      • refresh_token_blocklist (jti, user_id,
+        expires_at, revoked_at)
+      Schema is managed by Alembic migrations.
     end note
 
+  }
+
+  package "LangGraph Runtime Wiring" #F8F0FF {
+    class SharedCheckpointer <<BaseCheckpointSaver>> {
+      + setup() : void
+      + close() : void
+    }
+
+    class ChainModule <<chain package>> {
+      + checkpoint_lifespan(db_url=None) : AsyncContextManager
+      + compile_graph(checkpointer=None) : CompiledStateGraph
+    }
   }
 
   ' ─────────────────────────────────────────────────────
@@ -189,6 +209,7 @@ package "app (FastAPI Application Layer)" #F8F9FA {
     class Dependencies <<FastAPIDepends>> {
       + get_store(request) : SessionStore
       + get_graph(request) : CompiledStateGraph
+      + get_checkpointer(request) : BaseCheckpointSaver
       + get_current_user(token, store) : UserInDB
     }
   }
@@ -213,6 +234,8 @@ package "External Interfaces" #ECEFF1 {
 ' ─────────────────────────────────────────────────────────
 FastAPIApp --> AppConfig : reads config >
 FastAPIApp --> SessionStore : initialises & owns (app.state)
+FastAPIApp --> SharedCheckpointer : initialises & owns (app.state)
+FastAPIApp --> ChainModule : calls checkpoint_lifespan()\nand compile_graph(checkpointer=...)
 FastAPIApp --> ILangGraphChain : compiles & owns (app.state)
 FastAPIApp --> AuthRouter : mounts
 FastAPIApp --> ChatRouter : mounts
@@ -231,8 +254,10 @@ ChatRouter ..> SessionSummary : returns
 JWTMiddleware ..> UserInDB : returns
 Dependencies --> SessionStore : provides via app.state
 Dependencies --> ILangGraphChain : provides via app.state
+Dependencies --> SharedCheckpointer : provides via app.state
 Dependencies --> JWTMiddleware : delegates token validation
 
 SessionStore --> IPostgreSQL : queries
+ChainModule --> SharedCheckpointer : injects into graph compilation
 
 @enduml

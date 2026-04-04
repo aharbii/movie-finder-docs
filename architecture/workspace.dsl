@@ -61,27 +61,29 @@ workspace "Movie Finder" "AI-powered movie discovery and Q&A" {
             # -----------------------------------------------------------------
             angularSpa = container "Angular SPA" "Single-page application served by nginx. Provides the chat interface, session sidebar, movie cards, and authentication forms." "Angular 21 / TypeScript 5.9 / nginx" "Web Browser"
 
-            fastApiBackend = container "FastAPI Backend" "Handles authentication (JWT), session management, and chat. Delegates movie discovery to the LangGraph chain. Streams responses via SSE." "Python 3.13 / FastAPI / asyncpg" {
+            fastApiBackend = container "FastAPI Backend" "Handles authentication (JWT), session management, and chat. Runs Alembic migrations before process start, owns the shared LangGraph checkpointer during lifespan, and streams responses via SSE." "Python 3.13 / FastAPI / asyncpg" {
 
                 # -------------------------------------------------------------
                 # Components inside FastAPI Backend
                 # -------------------------------------------------------------
-                authRouter = component "Auth Router" "POST /auth/register, /auth/login, /auth/refresh, /auth/logout. Issues and validates JWT access tokens (30 min TTL) and refresh tokens (7 days)." "FastAPI Router"
+                authRouter = component "Auth Router" "POST /auth/register, /auth/login, /auth/refresh, /auth/logout. Issues and validates JWT access tokens (30 min TTL) and refresh tokens (7 days), with refresh-token revocation tracked by jti." "FastAPI Router"
 
-                chatRouter = component "Chat Router" "POST /chat (SSE stream), GET /chat/sessions, GET /chat/{id}/history, DELETE /chat/{id}. Validates JWT, resolves session ownership, delegates to the chain." "FastAPI Router"
+                chatRouter = component "Chat Router" "POST /chat (SSE stream), GET /chat/sessions, GET /chat/{id}/history, DELETE /chat/{id}. Validates JWT, resolves session ownership, enforces request limits, and delegates to the singleton compiled chain." "FastAPI Router"
 
                 jwtMiddleware = component "JWT Middleware" "Validates Bearer tokens on every authenticated request. Returns 401 on missing/expired token. Returns 403 on session ownership mismatch." "FastAPI Dependency"
 
-                sessionStore = component "Session Store" "Async PostgreSQL client (asyncpg). Persists users, sessions, and messages. Enforces user–session ownership on all reads and deletes." "asyncpg"
+                sessionStore = component "Session Store" "Async PostgreSQL client (asyncpg). Persists users, sessions, messages, and the refresh_token_blocklist. Enforces user-session ownership on all reads and deletes." "asyncpg"
 
-                langGraphChain = component "LangGraph Chain" "Compiled Pregel graph. Nodes: RAG Search → IMDb Enrichment → Validation → Presentation → [Confirmation | Refinement | Dead-end] → Q&A Agent. Maximum 3 refinement cycles." "LangGraph / LangChain"
+                langGraphCheckpointer = component "Shared LangGraph Checkpointer" "Backend-owned BaseCheckpointSaver created once during FastAPI lifespan from DATABASE_URL and injected into compile_graph(checkpointer=...)." "LangGraph Checkpoint Saver"
+
+                langGraphChain = component "LangGraph Chain" "Compiled Pregel graph. Nodes: RAG Search → IMDb Enrichment → Validation → Presentation → [Confirmation | Refinement | Dead-end] → Q&A Agent. Maximum 3 refinement cycles. Reuses the injected shared checkpointer across requests." "LangGraph / LangChain"
 
                 ragService = component "RAG Service" "Wraps the Qdrant Python client. Encodes user queries with OpenAI embeddings and queries the movies collection. Returns top-K candidates with cosine similarity scores." "qdrant-client / openai"
 
                 imdbApiClient = component "IMDb API Client" "Async HTTP client (httpx + tenacity). Queries imdbapi.dev search and title endpoints. Used by the IMDb Enrichment node to fetch live metadata per candidate." "httpx / pydantic"
             }
 
-            postgresDb = container "PostgreSQL" "Relational database. Stores users, chat sessions, and messages. Azure Database for PostgreSQL Flexible Server in production; local Docker container in development." "PostgreSQL 16" "Database"
+            postgresDb = container "PostgreSQL" "Relational database. Stores users, chat sessions, messages, refresh_token_blocklist entries, and LangGraph checkpoints. Azure Database for PostgreSQL Flexible Server in production; local Docker container in development." "PostgreSQL 16" "Database"
 
             ragIngestionPipeline = container "RAG Ingestion Pipeline" "Offline pipeline run manually or on schedule. Downloads the Kaggle movie dataset, generates OpenAI embeddings, and loads vectors into Qdrant Cloud." "Python 3.13 / pandas / kagglehub / openai / qdrant-client" "Scheduled Job"
         }
@@ -106,7 +108,7 @@ workspace "Movie Finder" "AI-powered movie discovery and Q&A" {
         # =====================================================================
         user -> angularSpa "Uses" "HTTPS (port 80)"
         angularSpa -> fastApiBackend "REST + SSE (JWT Bearer)" "HTTPS /api (port 8000)"
-        fastApiBackend -> postgresDb "Reads and writes user, session, message data" "asyncpg / TCP 5432"
+        fastApiBackend -> postgresDb "Reads and writes app data and LangGraph checkpoints via DATABASE_URL-backed runtime wiring" "asyncpg / TCP 5432"
         fastApiBackend -> qdrantCloud "Vector search via RAG Service" "HTTPS"
         fastApiBackend -> anthropicApi "LLM calls via LangGraph chain" "HTTPS"
         fastApiBackend -> openAiApi "Embedding via RAG Service" "HTTPS"
@@ -123,6 +125,8 @@ workspace "Movie Finder" "AI-powered movie discovery and Q&A" {
         authRouter -> sessionStore "Creates user, validates credentials, stores refresh token"
         chatRouter -> sessionStore "Reads/writes sessions and messages"
         chatRouter -> langGraphChain "Invokes pipeline, streams events"
+        langGraphCheckpointer -> postgresDb "Persists LangGraph conversation checkpoints"
+        langGraphChain -> langGraphCheckpointer "Uses injected shared saver"
         langGraphChain -> ragService "RAG Search node: embed + query Qdrant"
         langGraphChain -> imdbApiClient "IMDb Enrichment node: fetch live metadata"
         langGraphChain -> anthropicApi "Calls Claude for classification, refinement, Q&A"
@@ -143,7 +147,7 @@ workspace "Movie Finder" "AI-powered movie discovery and Q&A" {
                         containerInstance angularSpa
                     }
 
-                    deploymentNode "ca-movie-finder Container App" "python:3.13-slim + FastAPI app. min=1 max=4 replicas. Port 8000." {
+                    deploymentNode "ca-movie-finder Container App" "python:3.13-slim + FastAPI app. Runs alembic upgrade head before uvicorn, then creates the shared checkpointer during lifespan. min=1 max=4 replicas. Port 8000." {
                         containerInstance fastApiBackend
                     }
                 }
@@ -219,14 +223,14 @@ workspace "Movie Finder" "AI-powered movie discovery and Q&A" {
             include *
             autoLayout lr
             title "FastAPI Backend — Component Diagram"
-            description "Internal components of the FastAPI backend: routers, middleware, chain, services."
+            description "Internal components of the FastAPI backend: routers, middleware, session storage, shared checkpointer, chain, and services."
         }
 
         deployment movieFinder "Production (Azure)" "ProductionDeployment" {
             include *
             autoLayout lr
             title "Movie Finder — Production Deployment (Azure)"
-            description "Azure Container Apps, PostgreSQL Flexible Server, ACR, Key Vault, and external services."
+            description "Azure Container Apps, PostgreSQL Flexible Server, ACR, Key Vault, external services, and the backend-owned persistent checkpoint runtime contract."
         }
 
         deployment movieFinder "Local Development" "LocalDeployment" {

@@ -12,14 +12,14 @@
 2. [Docker images and local stack](#2-docker-images-and-local-stack)
 3. [CI pipeline modes](#3-ci-pipeline-modes)
 4. [Prerequisites](#4-prerequisites)
-5. [Azure — provision infrastructure](#5-azure--provision-infrastructure)
-6. [Jenkins — install on Ubuntu](#6-jenkins--install-on-ubuntu)
-7. [Jenkins — expose via ngrok](#7-jenkins--expose-via-ngrok)
-8. [Jenkins — plugins](#8-jenkins--plugins)
-9. [Jenkins — credentials](#9-jenkins--credentials)
-10. [Jenkins — pipeline jobs](#10-jenkins--pipeline-jobs)
-11. [GitHub — webhooks](#11-github--webhooks)
-12. [Runtime secrets — Azure Key Vault](#12-runtime-secrets--azure-key-vault)
+5. [Azure — provision infrastructure](#5-azure-provision-infrastructure)
+6. [Jenkins — install on Ubuntu](#6-jenkins-install-on-ubuntu)
+7. [Jenkins — expose via ngrok](#7-jenkins-expose-via-ngrok)
+8. [Jenkins — plugins](#8-jenkins-plugins)
+9. [Jenkins — credentials](#9-jenkins-credentials)
+10. [Jenkins — pipeline jobs](#10-jenkins-pipeline-jobs)
+11. [GitHub — webhooks](#11-github-webhooks)
+12. [Runtime secrets — Azure Key Vault](#12-runtime-secrets-azure-key-vault)
 13. [Verify end-to-end](#13-verify-end-to-end)
 14. [Reference tables](#14-reference-tables)
 
@@ -754,25 +754,34 @@ curl https://$FQDN/auth/register \
 
 ### 14.3 Backend Container App environment variables
 
-| Variable                 | Source    | Notes                                          |
-| ------------------------ | --------- | ---------------------------------------------- |
-| `APP_ENV`                | Inline    | `staging` or `production`                      |
-| `APP_PORT`               | Inline    | `8000`                                         |
-| `QDRANT_COLLECTION_NAME` | Inline    | `movies`                                       |
-| `EMBEDDING_MODEL`        | Inline    | `text-embedding-3-large`                       |
-| `EMBEDDING_DIMENSION`    | Inline    | `3072`                                         |
-| `RAG_TOP_K`              | Inline    | `8`                                            |
-| `MAX_REFINEMENTS`        | Inline    | `3`                                            |
-| `IMDB_SEARCH_LIMIT`      | Inline    | `3` (imdbapi.dev requires no API key)          |
-| `CONFIDENCE_THRESHOLD`   | Inline    | `0.3`                                          |
-| `LOG_LEVEL`              | Inline    | `INFO`                                         |
-| `LANGSMITH_TRACING`      | Inline    | `false` (enable for debugging)                 |
-| `APP_SECRET_KEY`         | Key Vault | JWT signing key                                |
-| `DATABASE_URL`           | Key Vault | `postgresql://user:pass@pg-server:5432/dbname` |
-| `ANTHROPIC_API_KEY`      | Key Vault | Claude models                                  |
-| `OPENAI_API_KEY`         | Key Vault | OpenAI embeddings                              |
-| `QDRANT_URL`             | Key Vault | Qdrant Cloud cluster URL                       |
-| `QDRANT_API_KEY_RO`      | Key Vault | Qdrant read-only API key (runtime)             |
+| Variable                 | Source    | Notes                                                       |
+| ------------------------ | --------- | ----------------------------------------------------------- |
+| `APP_ENV`                | Inline    | `staging` or `production`                                   |
+| `APP_PORT`               | Inline    | `8000`                                                      |
+| `QDRANT_COLLECTION_NAME` | Inline    | `movies`                                                    |
+| `EMBEDDING_MODEL`        | Inline    | `text-embedding-3-large`                                    |
+| `EMBEDDING_DIMENSION`    | Inline    | `3072`                                                      |
+| `RAG_TOP_K`              | Inline    | `8`                                                         |
+| `MAX_REFINEMENTS`        | Inline    | `3`                                                         |
+| `IMDB_SEARCH_LIMIT`      | Inline    | `3` (imdbapi.dev requires no API key)                       |
+| `CONFIDENCE_THRESHOLD`   | Inline    | `0.3`                                                       |
+| `LOG_LEVEL`              | Inline    | `INFO`                                                      |
+| `CORS_ORIGINS`           | Inline    | JSON array of allowed frontend origins                      |
+| `GLOBAL_RATE_LIMIT`      | Inline    | Global API fallback limit (for example `100/minute`)        |
+| `AUTH_RATE_LIMIT`        | Inline    | Login/token route limit (for example `5/minute`)            |
+| `CHAT_RATE_LIMIT`        | Inline    | Authenticated `/chat` route limit (for example `20/minute`) |
+| `MAX_MESSAGE_LENGTH`     | Inline    | Max accepted chat payload length before 422                 |
+| `LANGSMITH_TRACING`      | Inline    | `false` (enable for debugging)                              |
+| `APP_SECRET_KEY`         | Key Vault | JWT signing key                                             |
+| `DATABASE_URL`           | Key Vault | `postgresql://user:pass@pg-server:5432/dbname`              |
+| `ANTHROPIC_API_KEY`      | Key Vault | Claude models                                               |
+| `OPENAI_API_KEY`         | Key Vault | OpenAI embeddings                                           |
+| `QDRANT_URL`             | Key Vault | Qdrant Cloud cluster URL                                    |
+| `QDRANT_API_KEY_RO`      | Key Vault | Qdrant read-only API key (runtime)                          |
+
+The backend container entrypoint runs `alembic upgrade head` before starting
+`uvicorn`, so deployments and local Docker startup both converge the schema
+through the committed migration history rather than raw startup DDL.
 
 ### 14.4 Docker image tag strategy
 

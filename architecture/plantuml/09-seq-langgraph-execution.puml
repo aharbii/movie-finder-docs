@@ -19,6 +19,9 @@ skinparam NoteBorderColor #F9A825
 skinparam ArrowColor #555555
 
 participant "Chat Router\n(FastAPI)" as router
+participant "FastAPI Lifespan" as lifespan
+participant "Shared Checkpointer" as checkpointer
+database "PostgreSQL" as pg
 participant "RAG Search\nNode" as rag
 participant "IMDb Enrichment\nNode" as imdb
 participant "Validation\nNode" as val
@@ -33,11 +36,35 @@ participant "OpenAI API" as openai
 participant "Anthropic API" as anthropic
 
 ' ═══════════════════════════════════════════════════════
+== APPLICATION STARTUP ==
+' ═══════════════════════════════════════════════════════
+
+lifespan -> checkpointer : checkpoint_lifespan(DATABASE_URL)
+activate checkpointer
+checkpointer -> pg : open persistent checkpoint store
+activate pg
+pg --> checkpointer : ready
+deactivate pg
+checkpointer --> lifespan : shared saver
+deactivate checkpointer
+
+lifespan -> router : store saver on app.state\ncompile_graph(checkpointer=...)
+
+' ═══════════════════════════════════════════════════════
 == GRAPH ENTRY: Discovery Phase ==
 ' ═══════════════════════════════════════════════════════
 
 router -> rag : ainvoke(state)\n[phase="discovery"]
 activate rag
+
+router -> checkpointer : load checkpoint(thread_id=session_id)
+activate checkpointer
+checkpointer -> pg : SELECT persisted checkpoint
+activate pg
+pg --> checkpointer : prior state / none
+deactivate pg
+checkpointer --> router : state seed
+deactivate checkpointer
 
 note right of rag
   ⚠ Issue #7: MovieSearchService
@@ -196,5 +223,14 @@ else refinement_count > 3
   dead --> router : stream "couldn't find your movie" message
   deactivate dead
 end
+
+router -> checkpointer : save checkpoint(thread_id=session_id,\nupdated graph state)
+activate checkpointer
+checkpointer -> pg : UPSERT checkpoint state
+activate pg
+pg --> checkpointer : ok
+deactivate pg
+checkpointer --> router : persisted
+deactivate checkpointer
 
 @enduml

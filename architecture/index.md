@@ -103,12 +103,14 @@ User ──────────────►│  Angular SPA  ←→  Fast
 │  │  Angular SPA     │  REST    │       FastAPI Backend             │   │
 │  │  TypeScript 5.9  ├─────────►  Python 3.13 + LangGraph          │   │
 │  │  nginx (prod)    │   SSE    │  Port 8000                       │   │
-│  │  Port 80         │◄─────────┤                                  │   │
+│  │  Port 80         │◄─────────┤  owns shared checkpointer        │   │
 │  └─────────────────┘          └────────────┬─────────────────────┘   │
-│                                            │ asyncpg                  │
+│                                            │ asyncpg + checkpoints    │
 │                                ┌───────────▼──────────────────────┐  │
 │                                │  PostgreSQL 16                   │  │
 │                                │  users · sessions · messages     │  │
+│                                │  refresh_token_blocklist         │  │
+│                                │  LangGraph checkpoints           │  │
 │                                └──────────────────────────────────┘  │
 │                                                                       │
 │  ┌────────────────────────────────────────────────────────────────┐  │
@@ -127,8 +129,8 @@ FastAPI Backend
 ├── Auth Router          POST /auth/register, /login, /refresh, /logout
 │   └── JWT Middleware   validates Bearer tokens · issues HS256 JWT pairs
 ├── Chat Router          POST /chat (SSE) · GET sessions/history · DELETE session
-│   ├── Session Store    asyncpg pool → PostgreSQL
-│   └── LangGraph Chain
+│   ├── Session Store    asyncpg pool → PostgreSQL app tables + refresh-token blocklist
+│   └── LangGraph Chain  singleton graph compiled with backend-owned shared checkpointer
 │       ├── RAG Search Node      → RAG Service → Qdrant + OpenAI (embed)
 │       ├── IMDb Enrichment Node → IMDb API Client → imdbapi.dev (async parallel)
 │       ├── Validation Node      (dedup, confidence filter ≥ threshold)
@@ -137,7 +139,16 @@ FastAPI Backend
 │       ├── Refinement Node      → Claude Sonnet (extract plot details, max 3×)
 │       ├── Q&A Agent Node       → Claude Sonnet + ReAct + IMDb tools
 │       └── Dead-End Node        (graceful exit after 3 refinement cycles)
-└── Health               GET /health → {"status": "ok"}
+├── Lifespan Runtime     creates shared checkpointer from `DATABASE_URL` · stores it on `app.state`
+│                        compiles singleton graph with `compile_graph(checkpointer=...)`
+└── Health               GET /health/live · GET /health/ready
+
+Production runtime uses two distinct PostgreSQL-backed persistence concerns:
+
+- Backend session storage: users, chat sessions, chat messages, and refresh-token revocation state.
+- LangGraph checkpoint persistence: conversation state owned by the backend runtime and shared across replicas through the injected checkpointer.
+
+Qdrant remains a separate external vector store used only for semantic retrieval; it is not part of either PostgreSQL-backed persistence path.
 ```
 
 ---
@@ -182,6 +193,8 @@ GitHub ──webhook──► Jenkins (Ubuntu + ngrok)
          │  min=1 max=5 replicas       min=1 max=4 replicas        │
          │                    │                                    │
          │                    └──► Azure PostgreSQL Flexible Server│
+         │                         sessions + blocklist +          │
+         │                         LangGraph checkpoints           │
          └────────────────────────────────────────────────────────┘
               │                   │                    │
          Azure Key Vault     Qdrant Cloud        imdbapi.dev
@@ -189,19 +202,20 @@ GitHub ──webhook──► Jenkins (Ubuntu + ngrok)
           managed identity)   no container)
 ```
 
+In deployed environments, the backend container entrypoint runs `alembic upgrade head` before `uvicorn` starts. During FastAPI lifespan startup, the backend creates one shared checkpointer from `DATABASE_URL`, stores it on `app.state`, compiles the singleton graph with that saver, and reuses it across requests. This is the runtime contract that preserves conversation continuity across process restarts and replica hops.
+
 ---
 
-## Open architectural issues
+## Selected remaining architectural issues
 
-The most impactful known issues affecting this architecture:
+The highest-signal architecture issues still called out in the current docs:
 
-| #                                                      | Issue                                                                 | Severity     |
-| ------------------------------------------------------ | --------------------------------------------------------------------- | ------------ |
-| [#2](https://github.com/aharbii/movie-finder/issues/2) | `MemorySaver` non-persistent — breaks multi-replica deployments       | **Critical** |
-| [#3](https://github.com/aharbii/movie-finder/issues/3) | Schema managed by raw DDL — no Alembic migrations, no indexes         | **Critical** |
-| [#4](https://github.com/aharbii/movie-finder/issues/4) | No rate limiting on any API endpoint                                  | **High**     |
-| [#5](https://github.com/aharbii/movie-finder/issues/5) | Refresh tokens cannot be revoked                                      | **High**     |
-| [#7](https://github.com/aharbii/movie-finder/issues/7) | OpenAI + Qdrant clients re-created on every LangGraph node invocation | **High**     |
-| [#8](https://github.com/aharbii/movie-finder/issues/8) | IMDb retry base delay 30 s — blocks SSE stream                        | **High**     |
+| #                                                        | Issue                                                                 | Severity   |
+| -------------------------------------------------------- | --------------------------------------------------------------------- | ---------- |
+| [#7](https://github.com/aharbii/movie-finder/issues/7)   | OpenAI + Qdrant clients re-created on every LangGraph node invocation | **High**   |
+| [#8](https://github.com/aharbii/movie-finder/issues/8)   | IMDb retry base delay 30 s — blocks SSE stream                        | **High**   |
+| [#12](https://github.com/aharbii/movie-finder/issues/12) | `UserInDB` still exposes `hashed_password` through auth dependencies  | **Medium** |
+| [#14](https://github.com/aharbii/movie-finder/issues/14) | Shared Qdrant cluster across environments                             | **Medium** |
+| [#17](https://github.com/aharbii/movie-finder/issues/17) | ngrok-based Jenkins webhook delivery                                  | **Low**    |
 
-See the [PlantUML diagrams](plantuml/index.md) for a full annotated view of all issues in context.
+See the [PlantUML diagrams](plantuml/index.md) for the detailed runtime and deployment views.

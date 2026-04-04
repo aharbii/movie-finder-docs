@@ -76,11 +76,13 @@ package "Microsoft Azure" #E8F5E9 {
       artifact "python:3.13-slim\n+ FastAPI + LangGraph" as be_img
 
       note right of be_app
-        ⚠ Issue #2: MemorySaver is in-process.
-        Multi-replica deployment will lose
-        LangGraph state between replicas.
-        Fix: PostgresSaver / RedisSaver
-        ⚠ Issue #9: CORS middleware missing
+        Container entrypoint runs:
+        1. alembic upgrade head
+        2. uvicorn app.main:app
+        FastAPI lifespan then creates one
+        shared checkpointer from DATABASE_URL,
+        stores it on app.state, and compiles
+        the singleton graph with it.
       end note
     }
 
@@ -93,11 +95,11 @@ package "Microsoft Azure" #E8F5E9 {
   note bottom of az_pg
     Accessible only from within the
     Container Apps environment network.
-    ⚠ Issue #3: schema via raw DDL at
-    startup — no Alembic migrations,
-    no indexes defined.
-    ⚠ Issue #10: confirmed_movie TEXT
-    (should be JSONB)
+    Stores:
+    • users / sessions / messages
+    • refresh_token_blocklist
+    • LangGraph checkpoints
+    App schema is managed through Alembic.
   end note
 
 }
@@ -149,7 +151,7 @@ akv --> be_app : inject secrets at startup\n(Managed Identity)
 
 fe_app --> be_app : HTTPS /api\n(within Container Apps VNet)
 
-be_app --> az_pg : asyncpg · TCP 5432
+be_app --> az_pg : asyncpg app data +\npersistent checkpoints
 be_app --> qdrant : HTTPS (qdrant-client)
 be_app --> openai : HTTPS (openai SDK)
 be_app --> anthropic : HTTPS (langchain-anthropic)
@@ -159,7 +161,7 @@ be_app --> imdbapi : HTTPS (httpx)
 ' Relationships — Local Dev
 ' ═══════════════════════════════════════════════════════
 local_fe --> local_be : HTTP /api\n(nginx proxy)
-local_be --> local_pg : asyncpg
+local_be --> local_pg : asyncpg app data +\noptional persistent checkpoints
 local_be ..> qdrant : same prod cluster\n(no local instance)
 
 @enduml

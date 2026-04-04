@@ -109,18 +109,12 @@ Container Apps environment, PostgreSQL Flexible Server, ACR, Key Vault, Qdrant C
 
 ## Known Issues cross-reference
 
-Diagrams include inline `⚠ Issue #N` annotations. Quick reference:
+Diagrams include inline `⚠ Issue #N` annotations for the issues that are still open in the current architecture docs. Quick reference:
 
 | GitHub Issue                                                                       | Severity | Diagrams       |
 | ---------------------------------------------------------------------------------- | -------- | -------------- |
-| [#2 MemorySaver non-persistent](https://github.com/aharbii/movie-finder/issues/2)  | Critical | 04, 09, 10     |
-| [#3 No Alembic migrations](https://github.com/aharbii/movie-finder/issues/3)       | Critical | 03, 10         |
-| [#4 No rate limiting](https://github.com/aharbii/movie-finder/issues/4)            | High     | 02, 03, 08     |
-| [#5 Refresh token not revocable](https://github.com/aharbii/movie-finder/issues/5) | High     | 01, 07         |
 | [#7 Clients recreated per node](https://github.com/aharbii/movie-finder/issues/7)  | High     | 04, 09         |
 | [#8 IMDb retry 30 s delay](https://github.com/aharbii/movie-finder/issues/8)       | High     | 04, 09         |
-| [#9 No CORS middleware](https://github.com/aharbii/movie-finder/issues/9)          | Medium   | 02, 03, 08, 10 |
-| [#10 confirmed_movie as TEXT](https://github.com/aharbii/movie-finder/issues/10)   | Medium   | 01, 03, 10     |
 | [#12 UserInDB exposes hash](https://github.com/aharbii/movie-finder/issues/12)     | Medium   | 03, 07         |
 | [#14 Shared Qdrant cluster](https://github.com/aharbii/movie-finder/issues/14)     | Medium   | 02, 10         |
 | [#15 total=False TypedDict](https://github.com/aharbii/movie-finder/issues/15)     | Low      | 01, 04         |

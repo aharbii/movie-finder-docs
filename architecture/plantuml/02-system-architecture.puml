@@ -45,6 +45,7 @@ package "Movie Finder Platform" #F8F9FA {
       component [Chat Router] as chat_router <<FastAPI Router>>
       component [JWT Middleware] as jwt_mw <<FastAPI Dependency>>
       component [Session Store] as session_store <<asyncpg>>
+      component [Shared LangGraph\nCheckpointer] as checkpointer <<BaseCheckpointSaver>>
       component [LangGraph Chain\n(8 nodes)] as chain <<LangGraph / LangChain>>
       component [RAG Service] as rag_svc <<qdrant-client / openai>>
       component [IMDb API Client] as imdb_client <<httpx / tenacity>>
@@ -100,7 +101,10 @@ backend --> chat_router : routes /chat/*
 chat_router --> jwt_mw : validate Bearer token
 auth_router --> session_store : create/verify users
 chat_router --> session_store : read/write sessions & messages
+backend --> checkpointer : create once during lifespan\nfrom DATABASE_URL
+backend --> chain : compile singleton graph with\ninjected shared saver
 chat_router --> chain : stream_events(message, history, phase)
+chain --> checkpointer : load/save conversation checkpoints
 chain --> rag_svc : RAG Search node
 chain --> imdb_client : IMDb Enrichment node
 chain --> anthropic : Claude Haiku (classify)\nClaude Sonnet (refine, Q&A)
@@ -112,13 +116,22 @@ imdb_client --> imdbapi : search + title details\n(parallel, async)
 ' Relationships — Data & Infra
 ' ─────────────────────────────────────────────────────────
 session_store --> postgres : asyncpg connection pool\nusers / sessions / messages
+checkpointer --> postgres : checkpoint tables\n(shared across replicas)
 
 note bottom of session_store
-  ⚠ Issue #3: schema managed by raw DDL
-  No Alembic migrations, no indexes
-  ⚠ Issue #9: no CORS middleware
-  ⚠ Issue #4: no rate limiting on any endpoint
-  ⚠ Issue #13: no input length validation
+  Session Store persists backend-owned app data:
+  • users / sessions / messages
+  • refresh_token_blocklist (jti revocation)
+  Schema is managed through Alembic migrations.
+  confirmed_movie uses JSONB; timestamps use
+  native PostgreSQL TIMESTAMPTZ.
+end note
+
+note bottom of checkpointer
+  Backend-owned runtime singleton.
+  Created once on startup, stored on app.state,
+  and injected into compile_graph(checkpointer=...).
+  Memory-only saver is local/test fallback only.
 end note
 
 backend --> akv : fetch secrets at startup\n(Managed Identity)
