@@ -8,7 +8,12 @@ info:
     All `/chat` endpoints require a Bearer token obtained from `/auth/login` or
     `/auth/register`. Access tokens expire in **30 minutes**; use
     `/auth/refresh` to obtain a new pair before expiry. Refresh tokens expire
-    in **7 days**.
+    in **7 days**. Call `POST /auth/logout` with the refresh token to revoke it
+    server-side before it expires.
+
+    ## Rate limiting
+    Login, token, and chat endpoints are rate-limited. Exceeded limits return
+    **429** with a `Retry-After` header (seconds until the limit resets).
 
     ## Streaming
     `POST /chat` returns a `text/event-stream` response. Use `fetch` with a
@@ -95,6 +100,8 @@ paths:
                 detail: "Invalid credentials"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
 
   /auth/refresh:
     post:
@@ -119,7 +126,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/Token"
         "401":
-          description: Refresh token invalid or expired.
+          description: Refresh token invalid, expired, or already revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Logout
+      description: >
+        Revoke a refresh token by blocklisting its JTI until expiry.
+        Call this when the user logs out to invalidate the refresh token
+        server-side. Access tokens are short-lived (30 min) and expire
+        on their own — they cannot be individually revoked. On success
+        the client should discard both tokens from storage.
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "204":
+          description: Refresh token revoked — no content returned.
+        "401":
+          description: Token is not a refresh token or is missing required claims.
           content:
             application/json:
               schema:
@@ -212,6 +248,8 @@ paths:
                 detail: "Session not found"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
 
   /chat/{session_id}:
     delete:
@@ -293,23 +331,39 @@ paths:
       tags: [chat]
       summary: List sessions
       description: >
-        Return all chat sessions belonging to the authenticated user, ordered
-        by most-recently-updated first. Each item includes `first_message` (the
-        first user message text) so the frontend can display a title without
-        loading full history. Call this on app load / after login to restore
-        the session sidebar.
+        Return a paginated list of chat sessions belonging to the authenticated
+        user, ordered by creation time (newest first). Each item includes
+        `first_message` so the frontend can display a title without loading full
+        history. Call this on app load / after login to restore the session
+        sidebar. Use `limit` and `offset` to page through results.
       operationId: listSessions
       security:
         - HTTPBearer: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Maximum number of sessions to return.
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of sessions to skip before returning results.
       responses:
         "200":
-          description: Session list returned (may be empty).
+          description: Paginated session list returned.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/SessionSummary"
+                $ref: "#/components/schemas/SessionPage"
         "401":
           description: Missing or expired access token.
           content:
@@ -319,15 +373,17 @@ paths:
 
   # ── Ops ──────────────────────────────────────────────────────────────────
 
-  /health:
+  /health/live:
     get:
       tags: [ops]
-      summary: Health check
-      description: 'Liveness probe. Returns `{"status": "ok"}` when the service is up.'
-      operationId: health
+      summary: Liveness probe
+      description: >
+        Returns 200 when the process is running. Used by Docker HEALTHCHECK
+        and load balancers to detect crashed replicas.
+      operationId: healthLive
       responses:
         "200":
-          description: Service is healthy.
+          description: Process is alive.
           content:
             application/json:
               schema:
@@ -336,6 +392,33 @@ paths:
                   status:
                     type: string
                     example: ok
+
+  /health/ready:
+    get:
+      tags: [ops]
+      summary: Readiness probe
+      description: >
+        Returns 200 when the application is ready to serve traffic (database
+        pool connected, graph compiled). Returns 503 during startup or when a
+        required dependency is unavailable.
+      operationId: healthReady
+      responses:
+        "200":
+          description: Application is ready to serve requests.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        "503":
+          description: Application is not yet ready.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDetail"
 
 # ---------------------------------------------------------------------------
 # Components
@@ -357,6 +440,19 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/HTTPValidationError"
+    RateLimitExceeded:
+      description: Rate limit exceeded — back off and retry after the indicated delay.
+      headers:
+        Retry-After:
+          description: Seconds until the rate limit resets.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorDetail"
+          example:
+            detail: "Rate limit exceeded"
 
   # ── Schemas ───────────────────────────────────────────────────────────────
   schemas:
@@ -423,7 +519,11 @@ components:
             it on subsequent messages.
         message:
           type: string
-          description: The user's chat message.
+          minLength: 1
+          description: >
+            The user's chat message. Must be at least 1 character. The server
+            enforces a configurable maximum length (default 2000 characters);
+            messages exceeding this limit return 422.
 
     # SSE stream (logical schema — not a JSON body)
     SseStream:
@@ -562,6 +662,25 @@ components:
         confidence:
           type: number
       additionalProperties: true
+
+    SessionPage:
+      type: object
+      description: Paginated list of session summaries.
+      required: [total, limit, offset, items]
+      properties:
+        total:
+          type: integer
+          description: Total number of sessions owned by the user (across all pages).
+        limit:
+          type: integer
+          description: Page size used for this response.
+        offset:
+          type: integer
+          description: Number of sessions skipped before this page.
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionSummary"
 
     SessionSummary:
       type: object
