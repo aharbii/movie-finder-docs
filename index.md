@@ -85,7 +85,7 @@ CI/CD: Jenkins (CONTRIBUTION → INTEGRATION → RELEASE)
 | [`backend/`](https://github.com/aharbii/movie-finder-backend) | FastAPI + LangGraph integration root |
 | [`backend/app/`](https://github.com/aharbii/movie-finder-backend) | Auth, chat routers, session store |
 | [`backend/chain/`](https://github.com/aharbii/movie-finder-chain) | LangGraph multi-agent pipeline |
-| [`backend/imdbapi/`](https://github.com/aharbii/imdbapi-client) | Async IMDb REST API client |
+| [`backend/chain/imdbapi/`](https://github.com/aharbii/imdbapi-client) | Async IMDb REST API client |
 | [`backend/rag_ingestion/`](https://github.com/aharbii/movie-finder-rag) | Dataset → embed → Qdrant ingestion |
 | [`frontend/`](https://github.com/aharbii/movie-finder-frontend) | Angular 21 SPA |
 | [`docs/`](https://github.com/aharbii/movie-finder-docs) | This documentation site |
