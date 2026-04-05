@@ -81,7 +81,7 @@ Every Python repo exposes the same target vocabulary:
 | `make init`           | Build image, copy `.env`, install git hook                     |
 | `make editor-up`      | Start dev container for VS Code attach                         |
 | `make editor-down`    | Stop dev container                                             |
-| `make shell`          | Open zsh shell in container                                    |
+| `make shell`          | Open bash shell in container                                   |
 | `make lint`           | `ruff check` — report only, no modifications                   |
 | `make fix`            | `ruff check --fix` + `ruff format` — auto-apply all safe fixes |
 | `make format`         | `ruff format` — format only                                    |

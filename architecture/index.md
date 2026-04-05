@@ -37,10 +37,21 @@ PlantUML and Structurizr are both committed as source. StarUML is a manual expor
     # → http://localhost:8001
     ```
 
+    No local PlantUML install needed. The mkdocs container includes PlantUML and graphviz.
+
 === "PlantUML — VS Code live preview"
 
-    Open any `.puml` file and press `Option+D` / `Alt+D`
-    (requires the **jebbs.plantuml** extension, pre-configured in `.vscode/settings.json`).
+    1. Start the PlantUML server (no host install needed):
+    ```bash
+    # from repo root
+    make plantuml
+    # → http://localhost:18088
+    ```
+
+    2. Open any `.puml` file in VS Code and press `Alt+D` (macOS: `Option+D`).
+
+    The **jebbs.plantuml** extension is pre-configured in `.vscode/settings.json` to use
+    the local server at `http://localhost:18088`. The server must be running for preview to work.
 
 === "Structurizr — C4 viewer"
 
