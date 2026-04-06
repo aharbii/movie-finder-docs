@@ -23,6 +23,7 @@ participant "Auth\nInterceptor" as interceptor
 participant "Chat Router\n(FastAPI)" as chat_router
 participant "JWT\nMiddleware" as jwt_mw
 participant "Session Store\n(asyncpg)" as store
+participant "Shared Checkpointer\n(BaseCheckpointSaver)" as checkpointer
 participant "LangGraph Chain\n(CompiledStateGraph)" as chain
 database "PostgreSQL" as pg
 
@@ -60,11 +61,10 @@ else token invalid / expired
 end
 
 note right of chat_router
-  ⚠ Issue #9: no CORS middleware —
-  pre-flight OPTIONS blocked in prod.
-  ⚠ Issue #4: no rate limiting.
-  ⚠ Issue #13: message field has no
-  max length validation.
+  Runtime controls in production:
+  • configured CORS origins
+  • auth/chat/global rate limits
+  • max message length validation
 end note
 
 chat_router -> store : get_or_create_session(\n  session_id, user_id\n)
@@ -98,10 +98,21 @@ deactivate store
 chat_router -> chain : stream_events(\n  input={messages, phase, confirmed_movie},\n  config={thread_id: session_id}\n)
 activate chain
 
+chain -> checkpointer : load checkpoint(thread_id=session_id)
+activate checkpointer
+checkpointer -> pg : SELECT checkpoint state
+activate pg
+pg --> checkpointer : prior conversation state
+deactivate pg
+checkpointer --> chain : checkpoint payload
+deactivate checkpointer
+
 note over chat_router, chain
   FastAPI returns StreamingResponse with
   Content-Type: text/event-stream
   Each yielded chunk is one SSE frame.
+  The graph instance is compiled once at startup
+  with the backend-owned shared checkpointer.
 end note
 
 loop for each LLM token from user-facing nodes\n(presentation, qa_agent, dead_end, refinement)
@@ -110,6 +121,14 @@ end
 
 chain --> browser : data: {"type": "done",\n  "phase": "<new_phase>",\n  "session_id": "<id>",\n  "reply": "<full_text>",\n  "candidates": [...],       // discovery phase\n  "confirmed_movie": {...}   // confirmation phase\n}\n\n
 deactivate chain
+
+chain -> checkpointer : save checkpoint(thread_id=session_id,\n  updated_state)
+activate checkpointer
+checkpointer -> pg : UPSERT checkpoint state
+activate pg
+pg --> checkpointer : ok
+deactivate pg
+deactivate checkpointer
 
 ' ═══════════════════════════════════════════════════════
 == PERSIST: Save response and update session ==
@@ -141,6 +160,8 @@ note over browser
   • "done" event → finalise message, update phase,
     render CandidateCards (if candidates),
     render MoviePanel (if confirmed_movie)
+  Session rows and LangGraph checkpoints are
+  separate persistence concerns in PostgreSQL.
 end note
 
 @enduml

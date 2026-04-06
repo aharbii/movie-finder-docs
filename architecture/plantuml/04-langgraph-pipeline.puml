@@ -28,22 +28,27 @@ skinparam AbstractBorderColor #6A1B9A
 package "chain (LangGraph Module)" #F8F9FA {
 
   class MovieFinderGraph <<LangGraph>> {
-    - checkpointer : MemorySaver
+    - checkpointer : BaseCheckpointSaver
     - graph : CompiledStateGraph
     --
-    + compile_graph() : CompiledStateGraph
+    + compile_graph(checkpointer=None) : CompiledStateGraph
     + stream_events(message, history, phase) : AsyncIterator
   }
 
   note right of MovieFinderGraph
-    ⚠ Issue #2: MemorySaver is in-process
-    and non-persistent — state is lost on
-    restart and breaks multi-replica deployments.
-    Fix: replace with PostgresSaver or
-    RedisSaver checkpointer.
-    ⚠ Issue #18: create_agent import path
-    is non-standard (tech debt).
+    The chain package exposes runtime
+    integration hooks instead of owning
+    production persistence itself.
+    Backend injects the shared saver via
+    compile_graph(checkpointer=...).
+    Memory-only checkpointing is an explicit
+    local/test fallback, not the production
+    continuity model.
   end note
+
+  class CheckpointLifespan <<AsyncContextManager>> {
+    + checkpoint_lifespan(db_url=None) : AsyncContextManager
+  }
 
   ' ─────────────────────────────────────────────────────
   ' Graph State
@@ -214,6 +219,11 @@ package "chain (LangGraph Module)" #F8F9FA {
       + _arun(query : String) : String
     }
 
+    note bottom of LangChainIMDbTool
+      Uses the supported public agent API path
+      provided by the imdbapi package.
+    end note
+
   }
 
 }
@@ -234,6 +244,7 @@ BaseNode <|-- DeadEndNode
 ' Graph wires nodes
 ' ─────────────────────────────────────────────────────────
 MovieFinderGraph --> MovieFinderState : manages state
+CheckpointLifespan --> MovieFinderGraph : provides shared saver lifecycle
 MovieFinderGraph *-- RAGSearchNode : node
 MovieFinderGraph *-- IMDbEnrichmentNode : node
 MovieFinderGraph *-- ValidationNode : node

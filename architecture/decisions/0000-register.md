@@ -16,6 +16,7 @@ Architecture Decision Records (ADRs) document the significant choices made durin
 | [0004](0004-standalone-mcp-repositories.md)             | Standalone Repositories for MCP Servers                                                    | Accepted | 2026-04-05 |
 | [0005](0005-github-actions-mirror-and-root-pipeline.md) | GitHub Actions CI mirror and centralised root build pipeline                               | Accepted | 2026-04-06 |
 | [0006](0006-terraform-iac.md)                           | Terraform IaC — Azure primary, multi-cloud extensible                                      | Accepted | 2026-04-06 |
+| [0007](0007-persistent-langgraph-checkpointing.md)      | Persistent LangGraph checkpointing owned by the backend runtime                            | Accepted | 2026-04-04 |
 
 ## When to write an ADR
 

@@ -48,22 +48,16 @@ Each `.puml` file maps to one StarUML diagram. When converting manually:
 ## Known Issues Annotated
 
 The diagrams include inline `⚠ Issue #N` annotations corresponding to the
-tracked GitHub issues. These mark architectural debt for prioritisation.
+tracked GitHub issues that are still open in the current docs. These mark
+remaining architectural debt for prioritisation.
 
 | Issue                          | Severity | Location in diagrams |
 | ------------------------------ | -------- | -------------------- |
-| #2 MemorySaver non-persistent  | Critical | 04, 09, 10           |
-| #3 No Alembic migrations       | Critical | 03, 10               |
-| #4 No rate limiting            | High     | 02, 03, 08           |
-| #5 Refresh token not revocable | High     | 01, 07               |
 | #6 sys.exit in library         | High     | —                    |
 | #7 Clients recreated per node  | High     | 04, 09               |
 | #8 IMDb retry 30s delay        | High     | 04, 09               |
-| #9 No CORS middleware          | Medium   | 02, 03, 08, 10       |
-| #10 confirmed_movie as TEXT    | Medium   | 01, 03, 10           |
 | #11 No pagination              | Medium   | 03                   |
 | #12 UserInDB exposes hash      | Medium   | 03, 07               |
-| #13 No input validation        | Medium   | 03, 08               |
 | #14 Shared Qdrant cluster      | Medium   | 02, 10               |
 | #15 total=False TypedDict      | Low      | 01, 04               |
 | #16 IMDb stagger delay         | Low      | 04, 09               |

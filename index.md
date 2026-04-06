@@ -63,8 +63,9 @@ FastAPI Backend  ─────────────────────
         │                                                         │
         ▼                                                         ▼
 LangGraph Chain                                           PostgreSQL
- ├── RAG Search ──► Qdrant Cloud (3072-dim vector store)   users / sessions /
- ├── IMDb Enrichment ──► imdbapi.dev                        messages
+ ├── Shared checkpoints ◄── backend-owned checkpointer      users / sessions /
+ ├── RAG Search ──► Qdrant Cloud (3072-dim vector store)    messages / checkpoints
+ ├── IMDb Enrichment ──► imdbapi.dev                        / token blocklist
  ├── Validation
  ├── Presentation
  ├── Confirmation ◄── user picks a movie

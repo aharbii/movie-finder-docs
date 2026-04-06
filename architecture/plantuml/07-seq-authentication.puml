@@ -101,17 +101,24 @@ activate auth_router
 
 auth_router -> jwt_mw : decode_token(refresh_token)
 activate jwt_mw
-jwt_mw --> auth_router : {sub: user_id, exp: ...}  (or raises 401)
+jwt_mw --> auth_router : {sub: user_id, jti, exp: ...}  (or raises 401)
 deactivate jwt_mw
+
+auth_router -> store : is_refresh_token_revoked(jti)
+activate store
+store -> pg : SELECT 1 FROM refresh_token_blocklist\nWHERE jti = $1
+activate pg
+pg --> store : present / absent
+deactivate pg
+store --> auth_router : revoked?
+deactivate store
 
 auth_router -> auth_router : create_access_token(sub=user_id)\ncreate_refresh_token(sub=user_id)
 
 note right of auth_router
-  ⚠ Issue #5: refresh tokens cannot
-  be revoked — there is no token
-  blacklist or session table for tokens.
-  A stolen refresh_token is valid for
-  7 days with no remediation path.
+  Refresh requests reject revoked jti values.
+  Revocation state is persisted in PostgreSQL
+  refresh_token_blocklist so it survives restarts.
 end note
 
 auth_router --> browser : 200 OK\n{new access_token, new refresh_token}
@@ -130,10 +137,8 @@ jwt_mw --> auth_router : UserInDB
 deactivate jwt_mw
 
 note over auth_router
-  ⚠ Logout only validates the Bearer token.
-  It does NOT invalidate the refresh_token
-  — the user can still obtain new access
-  tokens until the refresh_token expires.
+  Logout revokes the presented refresh-token jti
+  in PostgreSQL so future refresh attempts fail.
 end note
 
 auth_router --> browser : 200 OK\n{"message": "Logged out successfully"}
