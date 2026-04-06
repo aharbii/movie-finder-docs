@@ -578,14 +578,37 @@ components:
 
     MovieCandidate:
       type: object
-      required: [rag_title, imdb_id, confidence]
+      required: [rag_title, confidence]
+      description: >
+        A RAG candidate cross-referenced and enriched with live IMDb data.
+        All `imdb_*` fields are null when no confident IMDb match was found.
       properties:
         rag_title:
           type: string
           description: Title as indexed in the RAG corpus.
+        rag_year:
+          type: integer
+          description: Release year from the RAG corpus.
+        rag_director:
+          type: string
+          description: Director from the RAG corpus.
+        rag_genre:
+          type: array
+          items:
+            type: string
+          description: Genres from the RAG corpus.
+        rag_cast:
+          type: array
+          items:
+            type: string
+          description: Cast members from the RAG corpus.
+        rag_plot:
+          type: string
+          description: Plot summary from the RAG corpus.
         imdb_id:
           type: string
-          description: IMDB title identifier (e.g. `tt0133093`).
+          nullable: true
+          description: IMDb title identifier (e.g. `tt0133093`). Null when no confident match.
         imdb_title:
           type: string
           nullable: true
@@ -593,16 +616,37 @@ components:
         imdb_year:
           type: integer
           nullable: true
+          description: Official IMDb release year.
         imdb_rating:
           type: number
           nullable: true
+          description: IMDb user rating (0–10).
+        imdb_plot:
+          type: string
+          nullable: true
+          description: Official IMDb plot summary.
+        imdb_genres:
+          type: array
+          items:
+            type: string
+          description: Official IMDb genres.
+        imdb_directors:
+          type: array
+          items:
+            type: string
+          description: Official IMDb directors.
+        imdb_stars:
+          type: array
+          items:
+            type: string
+          description: Official IMDb stars.
         imdb_poster_url:
           type: string
           format: uri
           nullable: true
           description: >
-            Poster image URL fetched from IMDB during enrichment.
-            Null when no confident IMDB match was found for this candidate.
+            Poster image URL fetched from IMDb during enrichment.
+            Null when no confident IMDb match was found for this candidate.
         confidence:
           type: number
           format: float
@@ -612,7 +656,7 @@ components:
             Blended confidence score (0–1):
             40% Qdrant cosine similarity (semantic relevance to user's query)
             + 60% IMDb title/year match (correctness of the IMDb record lookup).
-            Values are now meaningfully differentiated across candidates — display
+            Values are meaningfully differentiated across candidates — display
             as a percentage (e.g. 91%) rather than treating 1.00 as an upper bound.
 
     ConfirmedMovie:
