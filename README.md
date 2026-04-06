@@ -20,7 +20,7 @@ docs/
 │   ├── architecture.mdj              StarUML class + sequence diagrams
 │   └── decisions/
 │       ├── index.md                  ADR register
-│       └── ADR-001-*.md              Architecture Decision Records
+│       └── 0001-*.md              Architecture Decision Records
 ├── contributing/
 │   ├── index.md                      Root contribution guide (generated)
 │   ├── backend.md                    Backend contribution guide (generated)

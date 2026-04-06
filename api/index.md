@@ -20,12 +20,6 @@ interactive Swagger UI automatically from the running application.
 
 The embedded viewer below renders the static specification:
 
---8<-- "api/openapi.yaml"
-
-```yaml exec="swagger-ui"
-url: ./openapi.yaml
-```
-
 <!-- mkdocs-swagger-ui-tag renders the spec below -->
 <swagger-ui src="./openapi.yaml"/>
 

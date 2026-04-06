@@ -202,6 +202,12 @@ az account set --subscription "<your-subscription-id>"
 
 ## 5. Azure — provision infrastructure
 
+!!! note "Terraform IaC (target state)"
+    Infrastructure as Code via Terraform is adopted as the long-term provisioning approach
+    (see [ADR-0006](../architecture/decisions/0006-terraform-iac.md)). The `infrastructure/`
+    submodule will house the Terraform configuration. Until that work is complete, use the
+    `provision.sh` script described below as the current implementation.
+
 ### 5.1 Backend — automated via provision.sh
 
 The backend team provides a provisioning script that creates all backend Azure resources in one run.

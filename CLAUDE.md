@@ -70,7 +70,7 @@ Update `workspace.dsl` when:
 | File                              | Status                            |
 | --------------------------------- | --------------------------------- |
 | `index.md`                        | ADR index + blank template        |
-| `ADR-001-initial-architecture.md` | Accepted — foundational decisions |
+| `0001-initial-architecture.md` | Accepted — foundational decisions |
 
 **When to write an ADR:**
 
@@ -84,7 +84,7 @@ Update `workspace.dsl` when:
 **How to create an ADR:**
 
 1. Copy the template from `architecture/decisions/index.md`
-2. Name it `ADR-NNN-short-title.md` (NNN is the next sequential number)
+2. Name it `NNNN-short-title.md` (NNN is the next sequential number)
 3. Set status: `Proposed` → get review → `Accepted`
 4. Commit to this submodule first, then bump pointer in root
 5. Reference the ADR number in the PR description and GitHub issue

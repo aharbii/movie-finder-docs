@@ -14,11 +14,11 @@ Movie Finder is composed of five independently versioned services. Each has its 
 ```
 movie-finder (root orchestrator)
 ├── frontend/          Angular 21 SPA
-└── backend/           FastAPI integration root
-    ├── app/           Auth · Chat · Session Store
-    ├── chain/         LangGraph multi-agent pipeline
-    ├── imdbapi/       Async IMDb REST API client
-    └── rag_ingestion/ Dataset → embed → Qdrant
+├── backend/           FastAPI integration root
+│   ├── app/           Auth · Chat · Session Store
+│   └── chain/         LangGraph multi-agent pipeline
+│       └── imdbapi/   Async IMDb REST API client
+└── rag/               Dataset → embed → Qdrant  (offline tool, update = none)
 ```
 
 ---

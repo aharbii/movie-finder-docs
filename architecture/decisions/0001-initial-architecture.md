@@ -1,12 +1,8 @@
----
-title: "ADR-001: Initial Architecture — Tech Stack and Repository Structure"
-description: Rationale for the core technology choices and multi-repo submodule structure
----
+# 1. Initial Architecture — Tech Stack and Repository Structure
 
-# ADR-001: Initial Architecture — Tech Stack and Repository Structure
-
-**Date:** 2025-Q4
-**Status:** Accepted
+Date: 2026-03-30
+## Status
+Accepted
 
 ---
 
@@ -161,6 +157,6 @@ Movie Finder needed a fullstack AI application capable of:
 
 ## Future considerations
 
-- Migrate CI from Jenkins to GitHub Actions to reduce infrastructure overhead
+- ~~Migrate CI from Jenkins to GitHub Actions~~ → GitHub Actions now mirrors Jenkins 1:1 (0005)
 - Add a Qdrant staging collection to isolate dev/staging from production vector data
-- Consider Terraform/Bicep in `infrastructure/` to replace the `provision.sh` bash script
+- ~~Consider Terraform/Bicep in `infrastructure/`~~ → Terraform IaC implemented (0006)

@@ -21,9 +21,9 @@ This section documents the Movie Finder architecture at multiple levels of detai
 | --------------- | ------------------------------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | **PlantUML**    | `architecture/plantuml/*.puml` | Canonical UML: class, component, sequence, state, deployment                      | Every architectural change — these are the source of truth                   |
 | **Structurizr** | `architecture/workspace.dsl`   | C4 model (L1–L3 + deployment views) for stakeholder-facing architecture overviews | When containers, components, or external systems are added or renamed        |
-| **StarUML**     | Not in the repo                | Stakeholder export format — never generated programmatically                      | Maintained manually by the project owner from the `.puml` and `.dsl` sources |
+| **StarUML**     | `architecture/architecture.mdj` | Stakeholder export format — never generated programmatically                     | Maintained manually by the project owner from the `.puml` and `.dsl` sources |
 
-PlantUML and Structurizr are both committed as source. StarUML is a manual export used for offline stakeholder reviews; **never commit `.mdj` files**.
+PlantUML and Structurizr are both committed as source. `architecture.mdj` is tracked in the repo for offline stakeholder reviews; it is updated manually — **never generate it programmatically**.
 
 ---
 
@@ -37,10 +37,21 @@ PlantUML and Structurizr are both committed as source. StarUML is a manual expor
     # → http://localhost:8001
     ```
 
+    No local PlantUML install needed. The mkdocs container includes PlantUML and graphviz.
+
 === "PlantUML — VS Code live preview"
 
-    Open any `.puml` file and press `Option+D` / `Alt+D`
-    (requires the **jebbs.plantuml** extension, pre-configured in `.vscode/settings.json`).
+    1. Start the PlantUML server (no host install needed):
+    ```bash
+    # from repo root
+    make plantuml
+    # → http://localhost:18088
+    ```
+
+    2. Open any `.puml` file in VS Code and press `Alt+D` (macOS: `Option+D`).
+
+    The **jebbs.plantuml** extension is pre-configured in `.vscode/settings.json` to use
+    the local server at `http://localhost:18088`. The server must be running for preview to work.
 
 === "Structurizr — C4 viewer"
 
