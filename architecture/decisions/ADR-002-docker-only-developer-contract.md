@@ -1,8 +1,3 @@
----
-title: "ADR-002: Docker-Only Developer Contract — Standardised Makefile Targets Across All Python Sub-repos"
-description: Rationale for the Docker-only local workflow, exec_or_run pattern, and consistent Makefile target set adopted across all Python sub-repos
----
-
 # ADR-002: Docker-Only Developer Contract — Standardised Makefile Targets Across All Python Sub-repos
 
 **Date:** 2026-Q1

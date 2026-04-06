@@ -9,10 +9,14 @@ Architecture Decision Records (ADRs) document the significant choices made durin
 
 ## ADR index
 
-| ID                                                   | Title                                                                                      | Status   | Date    |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------- | ------- |
-| [ADR-001](ADR-001-initial-architecture.md)           | Initial architecture — tech stack and repository structure                                 | Accepted | 2025-Q4 |
-| [ADR-002](ADR-002-docker-only-developer-contract.md) | Docker-only developer contract — standardised Makefile targets across all Python sub-repos | Accepted | 2026-Q1 |
+| ID                                                   | Title                                                                                      | Status   | Date       |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------- | ---------- |
+| [ADR-001](ADR-001-initial-architecture.md)           | Initial architecture — tech stack and repository structure                                 | Accepted | 2025-Q4    |
+| [ADR-002](ADR-002-docker-only-developer-contract.md) | Docker-only developer contract — standardised Makefile targets across all Python sub-repos | Accepted | 2026-Q1    |
+| [ADR-003](ADR-003-adopt-mcp-for-internal-tooling.md)                         | Adopt Model Context Protocol for Internal AI Tooling                                       | Accepted | 2026-04-05 |
+| [ADR-004](ADR-004-standalone-mcp-repositories.md)                            | Standalone Repositories for MCP Servers                                                    | Accepted | 2026-04-05 |
+| [ADR-005](ADR-005-github-actions-mirror-and-root-pipeline.md)                | GitHub Actions CI mirror and centralised root build pipeline                               | Accepted | 2026-04-06 |
+| [ADR-006](ADR-006-terraform-iac.md)                                          | Terraform IaC — Azure primary, multi-cloud extensible                                     | Accepted | 2026-04-06 |
 
 ## When to write an ADR
 

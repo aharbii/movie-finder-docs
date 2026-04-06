@@ -22,6 +22,8 @@
 
 workspace "Movie Finder" "AI-powered movie discovery and Q&A" {
 
+    !adrs decisions
+
     model {
 
         # =====================================================================
@@ -44,7 +46,9 @@ workspace "Movie Finder" "AI-powered movie discovery and Q&A" {
 
         azureContainerRegistry = softwareSystem "Azure Container Registry (ACR)" "Private Docker image registry. Stores tagged images for backend and frontend. Tags: :sha8 (per commit), :latest (main branch), :v1.2.3 (releases)." "External"
 
-        jenkins = softwareSystem "Jenkins" "Self-hosted CI/CD server (Ubuntu + ngrok for GitHub webhook delivery). Runs lint, test, build, and deploy stages for backend and frontend pipelines." "External"
+        jenkins = softwareSystem "Jenkins" "Self-hosted CI/CD server (Ubuntu + ngrok for GitHub webhook delivery). Runs lint, test, and coverage for per-repo pipelines. Root pipeline builds images and deploys to Azure." "External"
+
+        githubActions = softwareSystem "GitHub Actions" "Cloud CI/CD. Mirrors Jenkins 1:1 — CONTRIBUTION mode (lint + test + coverage reports on PRs) and root pipeline (build + deploy via GitHub Environments for production gate)." "External"
 
         # =====================================================================
         # Movie Finder Software System
@@ -90,9 +94,11 @@ workspace "Movie Finder" "AI-powered movie discovery and Q&A" {
         movieFinder -> openAiApi "Text embedding at query time" "HTTPS"
         movieFinder -> imdbApiDev "Enriches candidates with live metadata" "HTTPS"
         movieFinder -> azureKeyVault "Fetches runtime secrets at startup" "HTTPS / Managed Identity"
-        jenkins -> movieFinder "Builds, tests, and deploys" "Docker push + az CLI"
-        jenkins -> azureContainerRegistry "Pushes Docker images" "HTTPS"
-        azureContainerRegistry -> movieFinder "Supplies container images" "HTTPS"
+        jenkins -> movieFinder "Builds Docker images and deploys via root pipeline" "Docker push + az CLI"
+        jenkins -> azureContainerRegistry "Pushes backend and frontend Docker images" "HTTPS"
+        azureContainerRegistry -> movieFinder "Supplies container images at deploy time" "HTTPS"
+        githubActions -> movieFinder "Mirrors Jenkins — lint/test per repo + build/deploy from root" "GitHub Environment gated"
+        githubActions -> azureContainerRegistry "Pushes Docker images (secondary path)" "HTTPS"
 
         # =====================================================================
         # Relationships — Container level
