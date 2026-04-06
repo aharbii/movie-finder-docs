@@ -1,11 +1,12 @@
-# ADR-004: Standalone Repositories for MCP Servers
+# 4. Standalone Repositories for MCP Servers
 
 **Date:** 2026-04-05
-**Status:** Accepted
+## Status
+Accepted
 
 ## Context
 
-With the decision to use MCP for internal tooling (ADR-003), we need to determine where these MCP servers should live. Integrating them into the existing `backend/` or `backend/chain/` submodules would introduce conflicting dependencies (e.g., `mcp` and `fastmcp` packages) and complicate the existing `uv.lock` files, which are strictly for production application dependencies.
+With the decision to use MCP for internal tooling (0003), we need to determine where these MCP servers should live. Integrating them into the existing `backend/` or `backend/chain/` submodules would introduce conflicting dependencies (e.g., `mcp` and `fastmcp` packages) and complicate the existing `uv.lock` files, which are strictly for production application dependencies.
 
 ## Decision
 

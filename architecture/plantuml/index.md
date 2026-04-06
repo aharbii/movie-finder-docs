@@ -9,13 +9,17 @@ description: UML architecture diagrams for Movie Finder — class, component, se
 Source files (`*.puml`) are in [`docs/architecture/plantuml/`](https://github.com/aharbii/movie-finder-docs/tree/main/architecture/plantuml).
 
 !!! tip "Rendering locally"
-```bash # Render all diagrams to PNG
-plantuml -png docs/architecture/plantuml/\*.puml
-
-    # Or run via the doc-prep script (recommended)
-    ./scripts/prepare-docs.sh
+    Run the full documentation build from the repo root — no local PlantUML install required:
+    ```bash
+    # Full docs build: prepares content, renders PlantUML PNGs, serves MkDocs
+    make mkdocs
+    # → http://localhost:8001
     ```
-    Install: `brew install plantuml graphviz` (macOS) · `sudo apt install plantuml graphviz` (Ubuntu)
+    Or start only the PlantUML server for VS Code live preview:
+    ```bash
+    make plantuml
+    # → http://localhost:18088
+    ```
 
 !!! note "VS Code preview"
 Open any `.puml` file and press `Option+D` (macOS) / `Alt+D` (Windows/Linux) for a live preview panel.

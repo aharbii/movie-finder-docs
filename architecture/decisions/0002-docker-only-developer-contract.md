@@ -1,7 +1,8 @@
-# ADR-002: Docker-Only Developer Contract — Standardised Makefile Targets Across All Python Sub-repos
+# 2. Docker-Only Developer Contract — Standardised Makefile Targets Across All Python Sub-repos
 
-**Date:** 2026-Q1
-**Status:** Accepted
+Date: 2026-03-30
+## Status
+Accepted
 
 ---
 
@@ -132,7 +133,7 @@ Port 18080 avoids conflicts with Jenkins (8080) and FastAPI (8000).
 
 - **uv run directly on host** — rejected because it requires per-developer Python version management
   and breaks if uv is not installed or the wrong version is active.
-- **GitHub Actions for CI instead of Jenkins** — noted as future direction in ADR-001; out of scope
+- **GitHub Actions for CI instead of Jenkins** — noted as future direction in 0001; out of scope
   for this change, which focuses on local DX.
 - **Keeping `docker-compose.docs.yml` separate** — rejected to reduce cognitive overhead; the `docs`
   profile approach is equally explicit (`--profile docs`) and keeps everything in one file.

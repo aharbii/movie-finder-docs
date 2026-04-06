@@ -1,7 +1,8 @@
-# ADR-003: Adopt Model Context Protocol for Internal AI Tooling
+# 3. Adopt Model Context Protocol for Internal AI Tooling
 
 **Date:** 2026-04-05
-**Status:** Accepted
+## Status
+Accepted
 
 ## Context
 

@@ -1,7 +1,8 @@
-# ADR-005: GitHub Actions CI Mirror and Centralised Root Build Pipeline
+# 5. GitHub Actions CI Mirror and Centralised Root Build Pipeline
 
 **Date:** 2026-04-06
-**Status:** Accepted
+## Status
+Accepted
 
 ---
 
@@ -57,6 +58,7 @@ GitHub Environment-gated production deploys, and as a fallback during Jenkins ou
 ### 4. Reporting plugins standardised
 
 All GitHub Actions workflows use:
+
 - `EnricoMi/publish-unit-test-result-action@v2` (JUnit XML → PR check)
 - `irongut/CodeCoverageSummary@v1.3.0` (Cobertura XML → PR comment)
 - `marocchino/sticky-pull-request-comment@v2` (sticky comment, not duplicate)
@@ -66,6 +68,7 @@ All GitHub Actions workflows use:
 ## Consequences
 
 **Positive:**
+
 - No more hanging builds: the Docker build stage runs only in the root pipeline where it
   can be properly monitored and timed out.
 - Atomic releases: backend and frontend images are always built in the same pipeline run
@@ -73,6 +76,7 @@ All GitHub Actions workflows use:
 - GitHub Actions provides a secondary CI path and richer PR feedback (test + coverage reports).
 
 **Negative:**
+
 - Developers can no longer trigger image builds from a submodule pipeline directly.
   They must push to main or open a PR against the root repo to trigger a build.
 - The root pipeline depends on submodule pointers being up to date; pointer drift can

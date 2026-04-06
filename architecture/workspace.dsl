@@ -23,6 +23,7 @@
 workspace "Movie Finder" "AI-powered movie discovery and Q&A" {
 
     !adrs decisions
+    !docs requirements
 
     model {
 

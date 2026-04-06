@@ -17,7 +17,7 @@ movie-finder (root orchestrator)
 └── backend/           FastAPI integration root
     ├── app/           Auth · Chat · Session Store
     ├── chain/         LangGraph multi-agent pipeline
-    ├── imdbapi/       Async IMDb REST API client
+    │   └── imdbapi/   Async IMDb REST API client
     └── rag_ingestion/ Dataset → embed → Qdrant
 ```
 

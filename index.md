@@ -13,41 +13,41 @@ AI-powered movie discovery and Q&A. Describe a film you half-remember and the sy
 
 <div class="grid cards" markdown>
 
-- **Getting Started**
+-   **Getting Started**
 
-  Zero-to-running guide for all roles — prerequisites, cloning, secrets, local stack.
+    Zero-to-running guide for all roles — prerequisites, cloning, secrets, local stack.
 
-  [:octicons-arrow-right-24: Onboarding guide](onboarding.md)
+    [:octicons-arrow-right-24: Onboarding guide](onboarding.md)
 
-- **API Reference**
+-   **API Reference**
 
-  OpenAPI 3.1.0 specification with interactive Swagger UI.
+    OpenAPI 3.1.0 specification with interactive Swagger UI.
 
-  [:octicons-arrow-right-24: API docs](api/index.md)
+    [:octicons-arrow-right-24: API docs](api/index.md)
 
-- **Architecture**
+-   **Architecture**
 
-  C4 model, class diagrams, sequence diagrams, and architecture decision records.
+    C4 model, class diagrams, sequence diagrams, and architecture decision records.
 
-  [:octicons-arrow-right-24: Architecture](architecture/index.md)
+    [:octicons-arrow-right-24: Architecture](architecture/index.md)
 
-- **DevOps & Platform**
+-   **DevOps & Platform**
 
-  Jenkins setup, Azure provisioning, CI/CD pipeline guide, secrets management.
+    Jenkins setup, Azure provisioning, CI/CD pipeline guide, secrets management.
 
-  [:octicons-arrow-right-24: DevOps setup](devops/setup.md)
+    [:octicons-arrow-right-24: DevOps setup](devops/setup.md)
 
-- **Services**
+-   **Services**
 
-  Individual service documentation — backend, frontend, chain, IMDb client, RAG ingestion.
+    Individual service documentation — backend, frontend, chain, IMDb client, RAG ingestion.
 
-  [:octicons-arrow-right-24: Services](services/index.md)
+    [:octicons-arrow-right-24: Services](services/index.md)
 
-- **Contributing**
+-   **Contributing**
 
-  Branching strategy, commit conventions, PR process, code standards, testing requirements.
+    Branching strategy, commit conventions, PR process, code standards, testing requirements.
 
-  [:octicons-arrow-right-24: Contributing](contributing/index.md)
+    [:octicons-arrow-right-24: Contributing](contributing/index.md)
 
 </div>
 

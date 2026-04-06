@@ -21,9 +21,9 @@ This section documents the Movie Finder architecture at multiple levels of detai
 | --------------- | ------------------------------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | **PlantUML**    | `architecture/plantuml/*.puml` | Canonical UML: class, component, sequence, state, deployment                      | Every architectural change — these are the source of truth                   |
 | **Structurizr** | `architecture/workspace.dsl`   | C4 model (L1–L3 + deployment views) for stakeholder-facing architecture overviews | When containers, components, or external systems are added or renamed        |
-| **StarUML**     | Not in the repo                | Stakeholder export format — never generated programmatically                      | Maintained manually by the project owner from the `.puml` and `.dsl` sources |
+| **StarUML**     | `architecture/architecture.mdj` | Stakeholder export format — never generated programmatically                     | Maintained manually by the project owner from the `.puml` and `.dsl` sources |
 
-PlantUML and Structurizr are both committed as source. StarUML is a manual export used for offline stakeholder reviews; **never commit `.mdj` files**.
+PlantUML and Structurizr are both committed as source. `architecture.mdj` is tracked in the repo for offline stakeholder reviews; it is updated manually — **never generate it programmatically**.
 
 ---
 

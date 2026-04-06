@@ -1,7 +1,8 @@
-# ADR-006: Terraform Infrastructure as Code — Azure Primary, Multi-Cloud Extensible
+# 6. Terraform Infrastructure as Code — Azure Primary, Multi-Cloud Extensible
 
 **Date:** 2026-04-06
-**Status:** Accepted
+## Status
+Accepted
 
 ---
 
@@ -43,13 +44,13 @@ State locking is provided by Azure Blob lease semantics — no separate DynamoDB
 
 The Terraform workspace is organized into reusable modules:
 
-| Module               | Resources provisioned                                            |
-| -------------------- | ---------------------------------------------------------------- |
-| `networking`         | VNet, subnets with delegations, private DNS zone, VNet link      |
-| `container_registry` | Azure Container Registry                                         |
+| Module               | Resources provisioned                                             |
+| -------------------- | ----------------------------------------------------------------- |
+| `networking`         | VNet, subnets with delegations, private DNS zone, VNet link       |
+| `container_registry` | Azure Container Registry                                          |
 | `key_vault`          | Azure Key Vault with managed secrets (`lifecycle ignore_changes`) |
-| `database`           | PostgreSQL Flexible Server (HA in production)                    |
-| `container_apps`     | Container Apps Environment, managed identity, backend + frontend |
+| `database`           | PostgreSQL Flexible Server (HA in production)                     |
+| `container_apps`     | Container Apps Environment, managed identity, backend + frontend  |
 
 ### 4. Multi-cloud extensibility via toggle variables
 
@@ -75,6 +76,7 @@ or portal. Terraform never overwrites a rotated secret.
 ## Consequences
 
 **Positive:**
+
 - Reproducible infrastructure: `terraform apply` from a clean state produces an identical
   environment every time.
 - Environment parity: staging and production are identical except for size variables
@@ -84,6 +86,7 @@ or portal. Terraform never overwrites a rotated secret.
 - Multi-cloud path is available with low adoption cost.
 
 **Negative:**
+
 - Terraform state file is sensitive: compromise of the state storage account or state file
   exposes resource IDs, connection strings, and managed identity details.
 - First `apply` on a new subscription requires bootstrapping the state backend manually
@@ -97,7 +100,7 @@ or portal. Terraform never overwrites a rotated secret.
 
 - Add `terraform plan` as a GitHub Actions check on PRs targeting `main` in the
   `infrastructure` repo.
-- Introduce a staging Qdrant collection (see ADR-001 open item) to isolate vector data
+- Introduce a staging Qdrant collection (see 0001 open item) to isolate vector data
   between environments.
 - Evaluate Terragrunt for managing multiple environment configurations when the number of
   environments grows beyond staging + production.
