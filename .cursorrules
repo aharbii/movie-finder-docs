@@ -1,0 +1,22 @@
+# Movie Finder Docs — Cursor Rules
+
+This file is a legacy fallback. Cursor loads the richer MDC rules from `.cursor/rules/` automatically.
+
+If your IDE supports MDC rules, the following files apply:
+- `.cursor/rules/project.mdc` — always active (docs context, rendering commands)
+- `.cursor/rules/architect.mdc` — activates on `.puml`, `workspace.dsl`, `decisions/`
+- `.cursor/rules/developer.mdc` — activates when implementing doc issues
+
+---
+
+## Quick reference
+
+**Repo:** `aharbii/movie-finder-docs` · Primary context: `CLAUDE.md`
+
+**Non-negotiables:**
+- Never generate `.mdj` StarUML files — user converts `.puml` to StarUML manually
+- Edit `.puml` source only — PNGs are generated at build time and gitignored
+- `make mkdocs` must run clean before any PR
+- ADR required for every new tech decision or project-wide pattern change
+- Conventional Commits: `docs(architecture): summary`
+- Disclose AI tool + model in every PR

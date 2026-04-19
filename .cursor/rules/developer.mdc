@@ -1,0 +1,40 @@
+---
+description: Developer workflow for the docs submodule. Activate when updating architecture diagrams, ADRs, or MkDocs documentation pages.
+alwaysApply: false
+---
+
+# Developer — docs
+
+## Workflow
+
+1. `gh issue view <N> --repo aharbii/movie-finder-docs`
+2. Find `## Agent Briefing` — if missing, stop
+3. Read only the files listed in the briefing
+4. Create branch from `main`
+5. Implement, validate locally with `make mkdocs` (from root)
+6. Commit → PR in `aharbii/movie-finder-docs`
+
+## Key tools
+
+```bash
+make mkdocs        # renders PlantUML PNGs + serves MkDocs at :8001
+make structurizr   # Structurizr C4 at :18080
+```
+
+Discover current PlantUML files:
+```bash
+ls docs/architecture/plantuml/
+```
+
+## Patterns
+
+- ADR template: `docs/architecture/decisions/index.md`
+- New diagram: follow `NN-description.puml` naming, add render reference in MkDocs nav
+- Never generate `.mdj` files — PlantUML only
+
+## After PR merges
+
+```bash
+git add docs
+git commit -m "chore(docs): bump to latest main"
+```

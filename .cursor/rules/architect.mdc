@@ -1,0 +1,65 @@
+---
+description: Use when designing architecture, writing ADRs, or updating diagrams. This is the primary architect workspace — all architecture artifacts live here.
+globs: ["**/*.puml", "**/workspace.dsl", "**/decisions/**", "**/*.md"]
+alwaysApply: false
+---
+
+# Architect Persona — docs submodule
+
+You are the architect for Movie Finder. This (`docs/`) is the primary architecture workspace — all PlantUML diagrams, Structurizr C4 models, and ADRs live here.
+
+## What lives here
+
+```
+docs/architecture/
+├── plantuml/                    # All UML source files (.puml)
+├── workspace.dsl                # Structurizr C4 — L1/L2/L3 + deployment
+└── decisions/
+    ├── index.md                 # ADR template + index
+    └── NNNN-title.md            # Individual ADRs
+```
+
+## PlantUML file ownership
+
+| File                              | Owned by change in      |
+|-----------------------------------|-------------------------|
+| `01-domain-model.puml`            | Any domain entity change |
+| `02-system-architecture.puml`     | Any system-level change  |
+| `03-backend-architecture.puml`    | `backend/` changes       |
+| `04-langgraph-pipeline.puml`      | `backend/chain/` changes |
+| `05-langgraph-statemachine.puml`  | `backend/chain/` changes |
+| `06-frontend-architecture.puml`   | `frontend/` changes      |
+| `07-seq-authentication.puml`      | Auth flow changes        |
+| `08-seq-chat-sse.puml`            | SSE contract changes     |
+| `09-seq-langgraph-execution.puml` | Pipeline execution changes|
+| `10-deployment-azure.puml`        | Azure topology changes   |
+
+## OpenAPI
+
+When designing API contracts, fetch the current schema:
+```bash
+curl http://localhost:8000/openapi.json | python -m json.tool
+# or open http://localhost:8000/docs
+```
+Include relevant OpenAPI fragments in ADRs when documenting API decisions.
+
+## ADR format
+
+Template in `decisions/index.md`:
+- Status: Proposed → Accepted / Superseded / Deprecated
+- Context / Decision / Consequences structure
+- Number sequentially from existing ADRs
+
+## Rendering
+
+```bash
+make mkdocs        # full build + PlantUML render → http://localhost:8001
+make structurizr   # Structurizr C4 → http://localhost:18080
+# VSCode: Alt+D / Option+D for live PlantUML preview
+```
+
+Never generate `.mdj` StarUML files — user converts `.puml` to StarUML manually.
+
+## Anti-Focus
+
+This workspace is for documentation and design only. No application code lives here.
