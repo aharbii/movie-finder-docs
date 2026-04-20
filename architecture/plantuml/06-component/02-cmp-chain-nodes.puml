@@ -1,0 +1,122 @@
+@startuml 02-cmp-chain-nodes
+title Movie Finder — Component Diagram: LangGraph Chain Module (Target Architecture — ADR-0007, ADR-0008)
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam componentFontSize 12
+skinparam ArrowColor #555555
+skinparam ComponentBackgroundColor #EDE7F6
+skinparam ComponentBorderColor #6A1B9A
+skinparam InterfaceBackgroundColor #F3E5F5
+skinparam InterfaceBorderColor #6A1B9A
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam DatabaseBackgroundColor #E3F2FD
+skinparam DatabaseBorderColor #1565C0
+skinparam CloudBackgroundColor #F1F8E9
+skinparam CloudBorderColor #388E3C
+
+' ─────────────────────────────────────────────────────────
+' External systems
+' ─────────────────────────────────────────────────────────
+cloud "Anthropic API\n(Claude Haiku / Sonnet)" as anthropic
+cloud "AI Provider\n(via LLMProvider interface)" as llm_provider
+cloud "Embedding Provider\n(OpenAI / Anthropic / Ollama)" as embed_provider
+cloud "Vector Store\n(Qdrant / Pinecone / Weaviate)" as vstore_provider
+cloud "imdbapi.dev\n(REST API)" as imdb_api
+database "PostgreSQL\n(PostgresSaver checkpointer)" as postgres_checkpointer
+
+' ─────────────────────────────────────────────────────────
+' Chain module internals
+' ─────────────────────────────────────────────────────────
+package "chain/ (LangGraph module)" #F9F0FF {
+
+  component "MovieFinderGraph\n(graph.py)" as graph {
+    port "compile_graph(checkpointer)" as p_compile
+    port "stream_events(msg, history, phase)" as p_stream
+  }
+
+  package "LangGraph Nodes (pure functions)" #EDE7F6 {
+    component "[1] ClassifyNode" as n_classify
+    component "[2] RAGSearchNode" as n_rag
+    component "[3] IMDbNode" as n_imdb
+    component "[4] ValidationNode" as n_validate
+    component "[5] PresentationNode" as n_present
+    component "[6] ConfirmationNode" as n_confirm
+    component "[7] QANode" as n_qa
+    component "[8] RefinementNode" as n_refine
+  }
+
+  package "Services — Singletons injected via Depends() (ADR-0008)" #F3E5F5 {
+    component "LLMProviderDep\n(created once at startup)" as svc_llm
+    component "EmbeddingProviderDep\n(created once at startup)" as svc_embed
+    component "VectorStoreProviderDep\n(created once at startup)" as svc_qdrant
+    component "IMDbService\n(imdbapi-client adapter)" as svc_imdb
+    component "PostgresSaver\n(persistent checkpointer — ADR-0007)" as svc_checkpointer
+  }
+
+  component "MovieFinderState\n(TypedDict, total=True)" as state
+}
+
+' ─────────────────────────────────────────────────────────
+' Node → service wiring
+' ─────────────────────────────────────────────────────────
+n_classify --> svc_llm : classify intent\n(Haiku provider)
+n_rag --> svc_embed : embed query
+n_rag --> svc_qdrant : top-K search\n({env}_movies collection)
+n_imdb --> svc_imdb : parallel metadata fetch
+n_present --> svc_llm : generate response\n(Sonnet provider)
+n_qa --> svc_llm : answer question\n(Sonnet provider)
+
+' ─────────────────────────────────────────────────────────
+' Node → state flow (LangGraph edges)
+' ─────────────────────────────────────────────────────────
+graph --> n_classify : START
+n_classify --> n_rag
+n_rag --> n_imdb
+n_imdb --> n_validate
+n_validate --> n_present : candidates OK
+n_validate --> n_refine : low confidence
+n_present --> n_confirm : phase=CONFIRMATION
+n_confirm --> n_qa : movie confirmed
+n_confirm --> n_rag : rejected (refine)
+n_qa --> n_qa : follow-up loop
+n_refine --> n_rag : retry with clarification
+
+n_classify ..> state : read/write
+n_rag ..> state : read/write
+n_imdb ..> state : read/write
+n_validate ..> state : read/write
+n_present ..> state : read/write
+n_confirm ..> state : read/write
+n_qa ..> state : read/write
+n_refine ..> state : read/write
+
+state --> svc_checkpointer : persisted after each node
+
+' ─────────────────────────────────────────────────────────
+' External connectivity
+' ─────────────────────────────────────────────────────────
+svc_llm --> llm_provider : LLMProvider.generate()\n(Anthropic / OpenAI / Ollama)
+svc_embed --> embed_provider : EmbeddingProvider.embed()\n(OpenAI / Anthropic / Ollama)
+svc_qdrant --> vstore_provider : VectorStoreProvider.search()\n(Qdrant / Pinecone / Weaviate)
+svc_imdb --> imdb_api : httpx HTTPS
+svc_checkpointer --> postgres_checkpointer : asyncpg TCP
+
+note right of svc_checkpointer
+  ADR-0007 — PostgresSaver replaces
+  MemorySaver. State is durable
+  across replicas and restarts.
+end note
+
+note right of svc_llm
+  ADR-0008 — provider singletons
+  created once at FastAPI lifespan
+  startup via LLMProviderFactory
+  and injected via Depends().
+end note
+
+@enduml

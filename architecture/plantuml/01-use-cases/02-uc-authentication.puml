@@ -1,0 +1,52 @@
+@startuml 02-uc-authentication
+title Movie Finder — Use Case: Authentication & Identity
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ActorBackgroundColor #FFF9C4
+skinparam ActorBorderColor #F57F17
+skinparam ActorFontSize 13
+skinparam UsecaseBackgroundColor #EEF2FF
+skinparam UsecaseBorderColor #3D6DB5
+skinparam UsecaseFontSize 12
+skinparam ArrowColor #555555
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam PackageBorderColor #AAAAAA
+
+actor "Guest\n(Unauthenticated)" as guest
+actor "User\n(Authenticated)" as user
+database "PostgreSQL\n(asyncpg)" as pg <<external system>>
+
+rectangle "Movie Finder — Auth System" {
+  usecase "Register account\n(username + password)" as UC_REGISTER
+  usecase "Login\n(username + password)" as UC_LOGIN
+  usecase "Receive access token\n(JWT, 30 min TTL)" as UC_ACCESS_TOKEN
+  usecase "Receive refresh token\n(opaque, 7 day TTL)" as UC_REFRESH_TOKEN
+  usecase "Refresh access token\n(using refresh token)" as UC_REFRESH
+  usecase "Logout\n(invalidate session)" as UC_LOGOUT
+  usecase "Validate JWT on\neach protected request" as UC_VALIDATE_JWT
+  usecase "Hash & store\ncredentials (bcrypt)" as UC_HASH
+  usecase "Revoke refresh token\n(blacklist in DB)" as UC_REVOKE
+}
+
+guest --> UC_REGISTER
+guest --> UC_LOGIN
+user --> UC_REFRESH
+user --> UC_LOGOUT
+user --> UC_VALIDATE_JWT
+
+UC_REGISTER ..> UC_HASH : <<include>>
+UC_HASH --> pg
+
+UC_LOGIN ..> UC_ACCESS_TOKEN : <<include>>
+UC_LOGIN ..> UC_REFRESH_TOKEN : <<include>>
+UC_ACCESS_TOKEN --> pg
+UC_REFRESH_TOKEN --> pg
+
+UC_REFRESH ..> UC_ACCESS_TOKEN : <<include>>
+UC_LOGOUT ..> UC_REVOKE : <<include>>
+UC_REVOKE --> pg
+
+@enduml

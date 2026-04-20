@@ -1,0 +1,78 @@
+@startuml 04-act-chat-qa
+title Movie Finder — Activity Diagram: Chat Q&A Flow (Post-Confirmation)
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ArrowColor #555555
+skinparam ActivityBackgroundColor #EEF2FF
+skinparam ActivityBorderColor #3D6DB5
+skinparam ActivityFontSize 12
+skinparam ActivityDiamondBackgroundColor #FFF9C4
+skinparam ActivityDiamondBorderColor #F57F17
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam PartitionBackgroundColor #FAFAFA
+skinparam PartitionBorderColor #AAAAAA
+
+|User (Browser)|
+start
+:Movie confirmed in previous turn;
+:Ask follow-up question\n("Who directed it?", "Similar films?");
+:Send POST /chat (session_id, message);
+
+|FastAPI Backend|
+:Extract bearer token (Authorization header);
+:Validate JWT (JWTBearer dependency);
+if (JWT valid?) then (no)
+  |Angular TokenRefreshInterceptor|
+  :Intercept 401;
+  :POST /auth/refresh;
+  :Retry original request;
+  |FastAPI Backend|
+else (yes)
+endif
+
+:Validate message (length ≤ 4096 chars, non-empty);
+:Load session from PostgreSQL;
+if (Session belongs to user?) then (no)
+  :Return 403 Forbidden;
+  stop
+else (yes)
+endif
+
+:Load conversation history\n(MessageRepository.get_history);
+:Save user message to DB;
+:Invoke LangGraph stream\n(phase=QA, history included);
+
+|LangGraph Chain (Q&A Node)|
+:Load phase=QA from persistent checkpointer;
+:Load confirmed_movie from JSONB state;
+:Build system prompt:\n"You are an expert on {movie_title}...";
+:Append conversation history as context;
+:Call LLMProvider.generate()\n(Claude Sonnet via LLMProviderFactory);
+
+loop for each response chunk
+  :Receive delta from AI provider;
+  |FastAPI Backend|
+  :Emit SSE event (data: {chunk});
+  |User (Browser)|
+  :Append chunk to message bubble;
+end loop
+
+|LangGraph Chain (Q&A Node)|
+:Assemble complete response;
+
+|FastAPI Backend|
+:Emit SSE done event (data: [DONE]);
+:Save assistant message to DB;
+
+|User (Browser)|
+:Display complete answer;
+if (More questions?) then (yes)
+  :Ask another question;
+else (no)
+  stop
+endif
+
+@enduml

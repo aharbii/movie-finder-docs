@@ -1,0 +1,84 @@
+@startuml 05-uc-system-roles
+title Movie Finder — System Roles & Capabilities Map
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ActorBackgroundColor #FFF9C4
+skinparam ActorBorderColor #F57F17
+skinparam ActorFontSize 12
+skinparam UsecaseBackgroundColor #EEF2FF
+skinparam UsecaseBorderColor #3D6DB5
+skinparam UsecaseFontSize 11
+skinparam ArrowColor #555555
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+
+' ── Actors ────────────────────────────────────────────────
+actor "Guest\n(unauthenticated)" as guest
+actor "User\n(authenticated)" as user
+actor "Data Engineer" as de
+actor "DevOps /\nSystem Admin" as admin
+actor "Jenkins CI\n(automation)" as ci
+
+' ── Inheritance ───────────────────────────────────────────
+guest <|-- user
+
+' ── Capability groups ─────────────────────────────────────
+package "Public Endpoints" #FFF8F0 {
+  usecase "Register" as UC_REG
+  usecase "Login" as UC_LOGIN
+  usecase "Health check\n(/health/live, /health/ready)" as UC_HEALTH
+}
+
+package "Authenticated Endpoints" #F0F4FF {
+  usecase "Semantic movie search" as UC_SEARCH
+  usecase "Chat with AI\n(streamed SSE)" as UC_CHAT
+  usecase "View conversation history" as UC_HISTORY
+  usecase "List sessions\n(paginated)" as UC_SESSIONS
+  usecase "Refresh access token" as UC_REFRESH
+  usecase "Logout" as UC_LOGOUT
+}
+
+package "RAG Ingestion (offline)" #F0FFF0 {
+  usecase "Trigger ingestion run" as UC_INGEST
+  usecase "Monitor ingestion metrics" as UC_METRICS
+  usecase "Backup vector store" as UC_BACKUP
+}
+
+package "Platform / Ops" #FFF0F0 {
+  usecase "Deploy via Jenkins CI" as UC_DEPLOY
+  usecase "Manage Azure resources" as UC_AZURE
+  usecase "Rotate secrets\n(Key Vault)" as UC_SECRETS
+  usecase "View LangSmith traces" as UC_TRACES
+  usecase "Query Qdrant (MCP)" as UC_QDRANT_MCP
+}
+
+' ── Role → capability assignments ────────────────────────
+guest --> UC_REG
+guest --> UC_LOGIN
+guest --> UC_HEALTH
+
+user --> UC_SEARCH
+user --> UC_CHAT
+user --> UC_HISTORY
+user --> UC_SESSIONS
+user --> UC_REFRESH
+user --> UC_LOGOUT
+
+de --> UC_INGEST
+de --> UC_METRICS
+de --> UC_BACKUP
+de --> UC_QDRANT_MCP
+
+admin --> UC_DEPLOY
+admin --> UC_AZURE
+admin --> UC_SECRETS
+admin --> UC_TRACES
+
+ci --> UC_DEPLOY
+ci --> UC_INGEST
+
+@enduml

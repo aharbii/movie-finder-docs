@@ -1,0 +1,146 @@
+@startuml 04-cmp-inter-service
+title Movie Finder — Inter-Service Communication & Integration Map (Target Architecture)
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam componentFontSize 11
+skinparam ArrowColor #555555
+skinparam ArrowFontSize 10
+skinparam ComponentBackgroundColor #EEF2FF
+skinparam ComponentBorderColor #3D6DB5
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam DatabaseBackgroundColor #E3F2FD
+skinparam DatabaseBorderColor #1565C0
+skinparam CloudBackgroundColor #F1F8E9
+skinparam CloudBorderColor #388E3C
+
+' ─────────────────────────────────────────────────────────
+' Client
+' ─────────────────────────────────────────────────────────
+package "Browser (Angular 21)" #FFF8F0 {
+  component "Angular SPA\n(nginx container)" as frontend
+}
+
+' ─────────────────────────────────────────────────────────
+' Runtime backend (in-process)
+' ─────────────────────────────────────────────────────────
+package "Backend Container (FastAPI + chain)" #F0F4FF {
+  component "FastAPI App\n(app/)" as fastapi
+  component "LangGraph Chain\n(chain/)" as chain
+  component "IMDb Client\n(imdbapi/)" as imdb_client
+}
+
+' ─────────────────────────────────────────────────────────
+' Data stores
+' ─────────────────────────────────────────────────────────
+package "Data Layer" #E3F2FD {
+  database "PostgreSQL 16\n(Azure Flexible Server)" as postgres
+  database "Qdrant Cloud\n({env}_movies collection)" as qdrant
+}
+
+note right of qdrant
+  Issue #14 — collection name
+  includes environment prefix:
+  dev_movies / staging_movies / movies
+end note
+
+' ─────────────────────────────────────────────────────────
+' External AI APIs (ADR-0008 providers)
+' ─────────────────────────────────────────────────────────
+package "AI Providers (ADR-0008)" #F3E5F5 {
+  cloud "Anthropic API\n(Claude Haiku / Sonnet)" as anthropic
+  cloud "OpenAI API\n(text-embedding-3-large)" as openai_api
+  cloud "Ollama\n(local / self-hosted)" as ollama
+}
+
+cloud "imdbapi.dev\n(REST API)" as imdb_ext
+
+' ─────────────────────────────────────────────────────────
+' Alternative vector stores (Issue #33)
+' ─────────────────────────────────────────────────────────
+package "Vector Store Options (Issue #33)" #E8F5E9 {
+  cloud "Qdrant Cloud\n(default)" as qdrant_cloud
+  cloud "Pinecone\n(alternative)" as pinecone
+  cloud "Weaviate\n(alternative)" as weaviate
+}
+
+' ─────────────────────────────────────────────────────────
+' Offline ingestion
+' ─────────────────────────────────────────────────────────
+package "RAG Ingestion (offline / CI)" #F0FFF0 {
+  component "Ingestion Pipeline\n(rag/)" as rag
+}
+
+cloud "Kaggle\n(movie dataset CSV)" as kaggle
+
+' ─────────────────────────────────────────────────────────
+' CI/CD — Target: GitHub Actions (Issues #17, #21)
+' ─────────────────────────────────────────────────────────
+package "CI/CD — Target Architecture" #FFF0F0 {
+  component "GitHub Actions\n(Reusable Workflows)" as gha
+  component "GitHub\n(source + webhooks)" as github
+}
+
+cloud "Azure Container Registry\n(ACR)" as acr
+cloud "Azure Container Apps\n(production)" as aca
+cloud "Terraform / Bicep\n(IaC — Issue #22)" as iac
+
+' ─────────────────────────────────────────────────────────
+' Observability
+' ─────────────────────────────────────────────────────────
+cloud "LangSmith\n(LangGraph tracing)" as langsmith
+
+' ─────────────────────────────────────────────────────────
+' Communication links
+' ─────────────────────────────────────────────────────────
+frontend --> fastapi : HTTP REST\nGET/POST (JSON)\nPort 8000\n(CORS configured)
+frontend --> fastapi : SSE stream\ntext/event-stream
+
+fastapi --> postgres : asyncpg\nTCP port 5432\n(connection pool)
+fastapi --> chain : Python in-process\n(LangGraph stream_events())
+
+chain --> qdrant : qdrant-client\ngRPC / HTTPS
+chain --> anthropic : Anthropic SDK\nHTTPS (via LLMProviderFactory)
+chain --> openai_api : OpenAI SDK\nHTTPS (via EmbeddingProviderFactory)
+chain --> ollama : httpx\nHTTPS / local
+chain --> imdb_client : internal call
+imdb_client --> imdb_ext : httpx\nHTTPS 443
+
+rag --> openai_api : Batch embedding\n(EmbeddingProviderFactory)
+rag --> anthropic : Batch embedding\n(alternative provider)
+rag --> ollama : Local embedding\n(alternative provider)
+rag --> qdrant_cloud : qdrant-client\n({env}_movies upsert)
+rag --> pinecone : pinecone-client\n({env}-movies upsert)
+rag --> weaviate : weaviate-client\n({Env}Movies upsert)
+rag --> kaggle : HTTP download\n(dataset CSV)
+rag --> gha : IngestionMetrics\n(step summary + JSON artifact)
+
+note right of rag
+  Issue #29 — metrics exported
+  to GitHub Actions step summary
+end note
+
+github --> gha : Direct webhook\n(no tunnel required)
+gha --> acr : docker push\n(sha8 + latest + semver tags)
+acr --> aca : image pull\n(on deploy)
+gha --> iac : terraform apply\n(infrastructure provisioning)
+
+note right of gha
+  Issue #17 / #21 — GitHub Actions
+  replaces Jenkins + ngrok.
+  Direct webhook, no tunnel.
+end note
+
+note right of iac
+  Issue #22 — Terraform / Bicep
+  manages: Container Apps, PostgreSQL
+  Flexible Server, ACR, Key Vault
+end note
+
+chain --> langsmith : LangSmith SDK\nHTTPS (opt-in tracing)
+
+@enduml

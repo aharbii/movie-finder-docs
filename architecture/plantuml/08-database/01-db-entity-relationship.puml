@@ -1,0 +1,133 @@
+@startuml 01-db-entity-relationship
+title Movie Finder — Database Schema: Entity-Relationship Diagram (PostgreSQL 16)
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam classFontSize 12
+skinparam classAttributeFontSize 11
+skinparam ArrowColor #555555
+skinparam ClassBackgroundColor #F8F9FA
+skinparam ClassBorderColor #1565C0
+skinparam ClassHeaderBackgroundColor #1565C0
+skinparam ClassHeaderFontColor white
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+
+package "PostgreSQL 16 — movie_finder database" #E3F2FD {
+
+  class users <<table>> {
+    + id : SERIAL PRIMARY KEY
+    --
+    username : VARCHAR(50) NOT NULL UNIQUE
+    email : VARCHAR(255) NOT NULL UNIQUE
+    hashed_password : TEXT NOT NULL
+    created_at : TIMESTAMPTZ NOT NULL DEFAULT now()
+    --
+    INDEX: idx_users_username (username)
+    INDEX: idx_users_email (email)
+  }
+
+  class sessions <<table>> {
+    + id : UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    --
+    # user_id : INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
+    phase : VARCHAR(20) NOT NULL DEFAULT 'discovery'
+    created_at : TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at : TIMESTAMPTZ NOT NULL DEFAULT now()
+    --
+    INDEX: idx_sessions_user_id (user_id)
+    INDEX: idx_sessions_updated_at DESC (updated_at)
+  }
+
+  note right of sessions
+    phase values:
+      'discovery' | 'confirmation' | 'qa'
+    Sessions paginated via
+    GET /chat/sessions?limit=20&offset=0
+  end note
+
+  class messages <<table>> {
+    + id : SERIAL PRIMARY KEY
+    --
+    # session_id : UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE
+    role : VARCHAR(10) NOT NULL CHECK (role IN ('user', 'assistant'))
+    content : TEXT NOT NULL CHECK (length(content) <= 65535)
+    created_at : TIMESTAMPTZ NOT NULL DEFAULT now()
+    --
+    INDEX: idx_messages_session_id (session_id)
+    INDEX: idx_messages_created_at DESC (session_id, created_at)
+  }
+
+  class confirmed_movies <<table>> {
+    + id : SERIAL PRIMARY KEY
+    --
+    # session_id : UUID NOT NULL REFERENCES sessions(id) UNIQUE
+    movie_data : JSONB NOT NULL
+    confirmed_at : TIMESTAMPTZ NOT NULL DEFAULT now()
+    --
+    INDEX: idx_confirmed_movies_session_id (session_id)
+    INDEX: idx_confirmed_movies_imdb_id ((movie_data->>'imdb_id'))
+  }
+
+  note right of confirmed_movies
+    movie_data is JSONB:
+    {
+      "title": str,
+      "year": int,
+      "imdb_id": str,
+      "genres": list[str],
+      "rating": float,
+      "plot": str,
+      "poster_url": str | null
+    }
+    JSONB expression index on imdb_id
+    enables efficient deduplication
+    queries across confirmed movies.
+  end note
+
+  class refresh_tokens <<table>> {
+    + id : SERIAL PRIMARY KEY
+    --
+    # user_id : INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
+    token_hash : CHAR(64) NOT NULL UNIQUE
+    expires_at : TIMESTAMPTZ NOT NULL
+    revoked : BOOLEAN NOT NULL DEFAULT FALSE
+    created_at : TIMESTAMPTZ NOT NULL DEFAULT now()
+    --
+    INDEX: idx_refresh_tokens_token_hash (token_hash)
+    INDEX: idx_refresh_tokens_user_id (user_id)
+  }
+
+  note right of refresh_tokens
+    token_hash is SHA-256 of the
+    opaque token bytes (hex string).
+    validate() checks:
+      expires_at > now() AND revoked = FALSE
+    revoke() sets revoked = TRUE.
+  end note
+
+  class alembic_version <<table>> {
+    + version_num : VARCHAR(32) PRIMARY KEY
+  }
+
+  note right of alembic_version
+    Alembic migration tracking table.
+    Schema managed via versioned
+    migration scripts — not raw DDL.
+  end note
+}
+
+' ─────────────────────────────────────────────────────────
+' Relationships
+' ─────────────────────────────────────────────────────────
+users "1" ||--o{ sessions : "owns"
+sessions "1" ||--o{ messages : "contains"
+sessions "1" ||--o| confirmed_movies : "has confirmed"
+users "1" ||--o{ refresh_tokens : "holds"
+
+@enduml

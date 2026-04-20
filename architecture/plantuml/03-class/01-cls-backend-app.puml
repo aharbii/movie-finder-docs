@@ -1,0 +1,231 @@
+@startuml 01-cls-backend-app
+title Movie Finder — Class Diagram: Backend Application Layer (FastAPI)
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam classFontSize 12
+skinparam classAttributeFontSize 11
+skinparam ArrowColor #555555
+skinparam ClassBackgroundColor #F8F9FA
+skinparam ClassBorderColor #3D6DB5
+skinparam ClassHeaderBackgroundColor #3D6DB5
+skinparam ClassHeaderFontColor white
+skinparam InterfaceBackgroundColor #E8EAF6
+skinparam InterfaceBorderColor #3949AB
+skinparam AbstractBackgroundColor #EDE7F6
+skinparam AbstractBorderColor #6A1B9A
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam EnumerationBackgroundColor #E8F5E9
+skinparam EnumerationBorderColor #388E3C
+skinparam EnumerationHeaderBackgroundColor #388E3C
+skinparam EnumerationHeaderFontColor white
+
+' ─────────────────────────────────────────────────────────
+' Configuration
+' ─────────────────────────────────────────────────────────
+package "config" #FFF8F0 {
+  class Settings <<BaseSettings>> {
+    + database_url : str
+    + secret_key : str
+    + algorithm : str = "HS256"
+    + access_token_expire_minutes : int = 30
+    + refresh_token_expire_days : int = 7
+    + cors_origins : list[str]
+    + rate_limit_default : str = "60/minute"
+    + llm_provider : str = "anthropic"
+    + embedding_provider : str = "openai"
+    + langsmith_tracing : bool = False
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' Domain / Pydantic Models
+' ─────────────────────────────────────────────────────────
+package "models" #F0F4FF {
+  class UserCreate <<BaseModel>> {
+    + username : str
+    + email : EmailStr
+    + password : str = Field(min_length=8)
+  }
+
+  class UserPublic <<BaseModel>> {
+    + id : int
+    + username : str
+    + email : str
+    + created_at : datetime
+  }
+
+  class UserInDB <<BaseModel>> {
+    - id : int
+    - username : str
+    - email : str
+    - hashed_password : str
+    - created_at : datetime
+  }
+
+  note right of UserInDB
+    UserInDB is an internal model only.
+    Routes return UserPublic — no
+    password hash exposed externally.
+  end note
+
+  class TokenPair <<BaseModel>> {
+    + access_token : str
+    + refresh_token : str
+    + token_type : str = "bearer"
+  }
+
+  class RefreshRequest <<BaseModel>> {
+    + refresh_token : str
+  }
+
+  class SessionPage <<BaseModel>> {
+    + total : int
+    + limit : int = 20
+    + offset : int = 0
+    + items : list[SessionSummary]
+  }
+
+  class ChatRequest <<BaseModel>> {
+    + message : str = Field(min_length=1, max_length=4096)
+    + session_id : str | None = None
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' Repository Layer
+' ─────────────────────────────────────────────────────────
+package "repositories" #F0FFF0 {
+  abstract class BaseRepository {
+    # pool : asyncpg.Pool
+    # execute(query, *args)
+    # fetch_one(query, *args)
+    # fetch_all(query, *args)
+  }
+
+  class UserRepository {
+    + create_user(user: UserCreate) : UserInDB
+    + get_by_username(username: str) : UserInDB | None
+    + get_by_id(user_id: int) : UserInDB | None
+  }
+
+  class SessionRepository {
+    + create_session(user_id: int) : str
+    + get_session(session_id: str) : dict | None
+    + update_phase(session_id, phase: str) : None
+    + list_sessions(user_id, limit, offset) : SessionPage
+    + set_confirmed_movie(session_id, movie: dict) : None
+  }
+
+  note right of SessionRepository
+    confirmed_movie stored as JSONB —
+    supports structured queries by
+    imdb_id, genre, year range.
+  end note
+
+  class MessageRepository {
+    + save_message(session_id, role, content) : None
+    + get_history(session_id: str) : list[dict]
+  }
+
+  class RefreshTokenRepository {
+    + store(user_id, token_hash, expires_at) : None
+    + validate(token: str) : bool
+    + revoke(token: str) : None
+  }
+
+  BaseRepository <|-- UserRepository
+  BaseRepository <|-- SessionRepository
+  BaseRepository <|-- MessageRepository
+  BaseRepository <|-- RefreshTokenRepository
+}
+
+' ─────────────────────────────────────────────────────────
+' Service Layer
+' ─────────────────────────────────────────────────────────
+package "services" #FFF0F8 {
+  class AuthService {
+    - user_repo : UserRepository
+    - token_repo : RefreshTokenRepository
+    - settings : Settings
+    --
+    + register(user: UserCreate) : UserPublic
+    + login(username, password) : TokenPair
+    + refresh_access_token(refresh_token) : TokenPair
+    + logout(refresh_token) : None
+    + verify_password(plain, hashed) : bool
+    + hash_password(password) : str
+    + create_access_token(data) : str
+    + create_refresh_token(user_id) : str
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' FastAPI Routers
+' ─────────────────────────────────────────────────────────
+package "routers" #FFF8E0 {
+  class AuthRouter <<APIRouter>> {
+    + POST /auth/register → 201 UserPublic
+    + POST /auth/login → 200 TokenPair
+    + POST /auth/refresh → 200 TokenPair
+    + POST /auth/logout → 204
+  }
+
+  class ChatRouter <<APIRouter>> {
+    + POST /chat → SSE stream
+    + GET /chat/sessions?limit&offset → SessionPage
+  }
+
+  class HealthRouter <<APIRouter>> {
+    + GET /health/live → 200
+    + GET /health/ready → 200 | 503
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' Middleware & Dependencies
+' ─────────────────────────────────────────────────────────
+package "dependencies" #F8F0FF {
+  class JWTBearer <<Depends>> {
+    + __call__(request) : UserPublic
+    - decode_token(token) : dict
+  }
+
+  class DatabasePool <<lifespan singleton>> {
+    + get_pool() : asyncpg.Pool
+  }
+}
+
+package "middleware" #F8F0FF {
+  class RateLimitMiddleware <<SlowAPI>> {
+    - default_limit : str = "60/minute"
+    - login_limit : str = "10/minute"
+  }
+
+  class CORSMiddleware <<Starlette>> {
+    - allow_origins : list[str]
+    - allow_credentials : bool = True
+    - allow_methods : list[str] = ["*"]
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' Relationships
+' ─────────────────────────────────────────────────────────
+AuthRouter --> AuthService : uses
+ChatRouter --> SessionRepository : uses
+ChatRouter --> MessageRepository : uses
+AuthService --> UserRepository : uses
+AuthService --> RefreshTokenRepository : uses
+AuthService --> Settings : reads
+AuthRouter ..> JWTBearer : <<Depends>>
+ChatRouter ..> JWTBearer : <<Depends>>
+JWTBearer ..> DatabasePool : <<Depends>>
+
+@enduml

@@ -1,0 +1,128 @@
+@startuml 04-seq-rag-ingestion
+title Movie Finder — Sequence Diagram: RAG Ingestion Pipeline (Target Architecture)
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam sequenceArrowFontSize 11
+skinparam sequenceParticipantFontSize 12
+skinparam sequenceLifeLineBorderColor #388E3C
+skinparam sequenceParticipantBackgroundColor #E8F5E9
+skinparam sequenceParticipantBorderColor #388E3C
+skinparam sequenceActorBackgroundColor #FFF9C4
+skinparam sequenceActorBorderColor #F57F17
+skinparam sequenceDividerBackgroundColor #F1F8E9
+skinparam sequenceDividerBorderColor #388E3C
+skinparam sequenceDividerFontColor #1B5E20
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam ArrowColor #555555
+
+actor "GitHub Actions\n(Parameterized Job)" as gha
+participant "IngestionPipeline" as pipeline
+participant "DatasetLoader" as loader
+participant "ChunkingStrategy\n(pluggable)" as chunker
+participant "EmbeddingProvider\n(pluggable)" as embedder
+participant "VectorStoreProvider\n(pluggable)" as store
+database "Kaggle / CSV" as kaggle
+database "AI Embedding API\n(OpenAI / Anthropic / Ollama)" as embed_api
+database "Vector Store\n(Qdrant / Pinecone / Weaviate)" as vstore_api
+
+' ═══════════════════════════════════════════════════════
+== FACTORY SETUP (Issue #42 / ADR-0008) ==
+' ═══════════════════════════════════════════════════════
+gha -> pipeline : pipeline.run()\nenv: {EMBEDDING_PROVIDER, VECTOR_STORE,\nCHUNKING_STRATEGY, ENV}
+activate pipeline
+
+pipeline -> pipeline : EmbeddingProviderFactory.create(settings)\nVectorStoreFactory.create(settings)\nChunkingStrategyFactory.create(settings)
+
+note right of pipeline
+  Factories read EMBEDDING_PROVIDER,
+  VECTOR_STORE, CHUNKING_STRATEGY
+  env vars and return the correct
+  interface implementation.
+end note
+
+' ═══════════════════════════════════════════════════════
+== COLLECTION SETUP (Issue #14) ==
+' ═══════════════════════════════════════════════════════
+pipeline -> store : env_collection_name(env="prod", base="movies")\nreturns "movies" (or "dev_movies" / "staging_movies")
+pipeline -> store : collection_exists(collection_name)
+activate store
+store -> vstore_api : check collection
+vstore_api --> store : exists / not found
+store --> pipeline : bool
+deactivate store
+
+opt Collection does not exist
+  pipeline -> store : create_collection(name, dim=provider.dimension)
+  store -> vstore_api : create collection
+  vstore_api --> store : OK
+end
+
+' ═══════════════════════════════════════════════════════
+== LOAD ==
+' ═══════════════════════════════════════════════════════
+pipeline -> loader : load()
+activate loader
+loader -> kaggle : HTTP GET dataset CSV
+kaggle --> loader : CSV stream
+loader -> loader : parse & validate records
+loader --> pipeline : list[dict] (valid records)
+deactivate loader
+
+' ═══════════════════════════════════════════════════════
+== CHUNK (Issue #31 — pluggable strategy) ==
+' ═══════════════════════════════════════════════════════
+pipeline -> chunker : chunk(records)
+activate chunker
+note right of chunker
+  Strategy is selected by
+  ChunkingStrategyFactory:
+  - FixedSizeChunker (fast, baseline)
+  - SemanticChunker (coherent plots)
+  - SentenceBasedChunker (natural breaks)
+end note
+chunker -> chunker : apply strategy to each record
+chunker --> pipeline : list[ChunkResult] (text + payload)
+deactivate chunker
+
+' ═══════════════════════════════════════════════════════
+== BATCH EMBED ==
+' ═══════════════════════════════════════════════════════
+loop for each batch (BATCH_SIZE=100 texts)
+  pipeline -> embedder : embed(batch_texts)
+  activate embedder
+  embedder -> embed_api : POST /embeddings\n(batch of up to 2048 texts)
+  embed_api --> embedder : list[vector[dim]]
+  embedder --> pipeline : list[list[float]]
+  deactivate embedder
+end
+
+' ═══════════════════════════════════════════════════════
+== UPSERT ==
+' ═══════════════════════════════════════════════════════
+pipeline -> store : upsert(batch_of_point_structs)
+activate store
+store -> vstore_api : batch upsert to {env}_collection
+vstore_api --> store : operation confirmed
+store --> pipeline : None
+deactivate store
+
+' ═══════════════════════════════════════════════════════
+== METRICS (Issue #29) ==
+' ═══════════════════════════════════════════════════════
+pipeline -> pipeline : compute IngestionMetrics\n(total, embedded, upserted, failed,\nduration_s, cost_usd, strategy, provider, env)
+pipeline --> gha : IngestionMetrics
+deactivate pipeline
+
+gha -> gha : write_step_summary(metrics.to_gha_summary())
+gha -> gha : upload_artifact("ingestion-metrics.json")
+
+note right of gha
+  Step summary shows cost-per-run,
+  throughput, and success rate for
+  regression tracking across runs.
+end note
+
+@enduml

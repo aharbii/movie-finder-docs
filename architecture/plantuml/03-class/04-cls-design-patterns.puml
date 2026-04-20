@@ -1,0 +1,215 @@
+@startuml 04-cls-design-patterns
+title Movie Finder — OOP & Design Pattern Catalog (Target Architecture)
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam classFontSize 12
+skinparam classAttributeFontSize 11
+skinparam ArrowColor #555555
+skinparam ClassBackgroundColor #F8F9FA
+skinparam ClassBorderColor #6A1B9A
+skinparam ClassHeaderBackgroundColor #6A1B9A
+skinparam ClassHeaderFontColor white
+skinparam InterfaceBackgroundColor #EDE7F6
+skinparam InterfaceBorderColor #6A1B9A
+skinparam AbstractBackgroundColor #EDE7F6
+skinparam AbstractBorderColor #6A1B9A
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+
+' ─────────────────────────────────────────────────────────
+' 1. STRATEGY — Embedding Providers (ADR-0008, Issues #33, #42)
+' ─────────────────────────────────────────────────────────
+package "STRATEGY — Embedding Providers (ADR-0008)" #EDE7F6 {
+  interface EmbeddingProvider <<Strategy>> {
+    + embed(texts: list[str]) : list[list[float]]
+    + embed_query(text: str) : list[float]
+    + dimension : int
+    + model_name : str
+  }
+  class OpenAIEmbeddingProvider implements EmbeddingProvider
+  class AnthropicEmbeddingProvider implements EmbeddingProvider
+  class OllamaEmbeddingProvider implements EmbeddingProvider
+  class SentenceTransformerEmbeddingProvider implements EmbeddingProvider
+}
+
+' ─────────────────────────────────────────────────────────
+' 2. STRATEGY — LLM Providers (ADR-0008, Issue #42)
+' ─────────────────────────────────────────────────────────
+package "STRATEGY — LLM Providers (ADR-0008)" #F3E5F5 {
+  interface LLMProvider <<Strategy>> {
+    + generate(prompt, history) : AsyncIterator[str]
+    + classify(prompt) : str
+    + model_name : str
+  }
+  class ClaudeSonnetProvider implements LLMProvider
+  class ClaudeHaikuProvider implements LLMProvider
+  class OpenAILLMProvider implements LLMProvider
+  class OllamaLLMProvider implements LLMProvider
+}
+
+' ─────────────────────────────────────────────────────────
+' 3. STRATEGY — Vector Store (Issue #33)
+' ─────────────────────────────────────────────────────────
+package "STRATEGY — Vector Store Providers" #E8F5E9 {
+  interface VectorStoreProvider <<Strategy>> {
+    + upsert(vectors) : None
+    + collection_exists(name) : bool
+    + create_collection(name, dim) : None
+    + env_collection_name(env, base) : str
+  }
+  class QdrantVectorStore implements VectorStoreProvider
+  class PineconeVectorStore implements VectorStoreProvider
+  class WeaviateVectorStore implements VectorStoreProvider
+
+  note right of VectorStoreProvider
+    Issue #14 — env_collection_name()
+    isolates data per environment:
+    dev_movies / staging_movies / movies
+  end note
+}
+
+' ─────────────────────────────────────────────────────────
+' 4. STRATEGY — Chunking (Issue #31)
+' ─────────────────────────────────────────────────────────
+package "STRATEGY — Chunking Strategies (Issue #31)" #FFF8E1 {
+  interface ChunkingStrategy <<Strategy>> {
+    + chunk(records: list[dict]) : list[ChunkResult]
+    + strategy_name : str
+  }
+  class FixedSizeChunker implements ChunkingStrategy
+  class SemanticChunker implements ChunkingStrategy
+  class SentenceBasedChunker implements ChunkingStrategy
+}
+
+' ─────────────────────────────────────────────────────────
+' 5. FACTORY — Provider Factories (ADR-0008)
+' ─────────────────────────────────────────────────────────
+package "FACTORY — Provider Factories (ADR-0008)" #E3F2FD {
+  class LLMProviderFactory <<Factory>> {
+    + {static} create(config: Settings) : LLMProvider
+  }
+
+  class EmbeddingProviderFactory <<Factory>> {
+    + {static} create(config: Settings) : EmbeddingProvider
+  }
+
+  class VectorStoreFactory <<Factory>> {
+    + {static} create(config: Settings) : VectorStoreProvider
+  }
+
+  class ChunkingStrategyFactory <<Factory>> {
+    + {static} create(config: Settings) : ChunkingStrategy
+  }
+
+  LLMProviderFactory ..> LLMProvider : <<creates>>
+  EmbeddingProviderFactory ..> EmbeddingProvider : <<creates>>
+  VectorStoreFactory ..> VectorStoreProvider : <<creates>>
+  ChunkingStrategyFactory ..> ChunkingStrategy : <<creates>>
+}
+
+' ─────────────────────────────────────────────────────────
+' 6. REPOSITORY — Data Access Layer
+' ─────────────────────────────────────────────────────────
+package "REPOSITORY — Data Access Layer" #FFF0F8 {
+  abstract class BaseRepository {
+    # pool : asyncpg.Pool
+    # execute(query, *args)
+    # fetch_one(query, *args)
+    # fetch_all(query, *args)
+  }
+  class UserRepository extends BaseRepository {
+    + create_user(data) : UserInDB
+    + get_by_username(name) : UserInDB | None
+  }
+  class SessionRepository extends BaseRepository {
+    + create_session(user_id) : str
+    + update_phase(id, phase) : None
+    + list_sessions(user_id, limit, offset) : SessionPage
+  }
+  class MessageRepository extends BaseRepository {
+    + save_message(session_id, role, content) : None
+    + get_history(session_id) : list[dict]
+  }
+  class RefreshTokenRepository extends BaseRepository {
+    + store(user_id, token_hash, expires_at) : None
+    + validate(token: str) : bool
+    + revoke(token: str) : None
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' 7. ADAPTER — IMDb API Client
+' ─────────────────────────────────────────────────────────
+package "ADAPTER — IMDb API Client" #F0FFF0 {
+  interface MovieMetadataSource <<Target>> {
+    + {abstract} fetch_metadata(title: str) : MovieMetadata
+    + {abstract} search(query: str) : list[MovieMetadata]
+  }
+
+  class IMDbApiClient <<Adapter>> {
+    - http_client : httpx.AsyncClient
+    - retry_policy : RetryConfig
+    --
+    + fetch_metadata(title) : MovieMetadata
+    + search(query) : list[MovieMetadata]
+    - map_response(raw: dict) : MovieMetadata
+  }
+
+  IMDbApiClient ..|> MovieMetadataSource
+}
+
+' ─────────────────────────────────────────────────────────
+' 8. DEPENDENCY INJECTION — FastAPI Depends()
+' ─────────────────────────────────────────────────────────
+package "DEPENDENCY INJECTION — FastAPI Depends()" #FFFDE7 {
+  class DatabasePool <<Singleton via lifespan>> {
+    + get_pool() : asyncpg.Pool
+  }
+
+  class LLMProviderDep <<Singleton via lifespan>> {
+    + get_llm_provider() : LLMProvider
+  }
+
+  class EmbeddingProviderDep <<Singleton via lifespan>> {
+    + get_embedding_provider() : EmbeddingProvider
+  }
+
+  class JWTBearer <<Security dependency>> {
+    + __call__(credentials) : UserInDB
+  }
+
+  note right of LLMProviderDep
+    Issue #42 — LLM & Embedding
+    providers are created once at
+    startup via lifespan context
+    and injected via Depends()
+  end note
+}
+
+' ─────────────────────────────────────────────────────────
+' 9. STATE MACHINE — LangGraph
+' ─────────────────────────────────────────────────────────
+package "STATE MACHINE — LangGraph Pipeline" #E8EAF6 {
+  class MovieFinderState <<TypedDict, total=True>> {
+    + phase : Phase
+    + messages : list[BaseMessage]
+    + candidates : list[MovieCandidate]
+    + confirmed_movie : MovieMetadata | None
+    + next_action : Literal["confirm","refine","qa","end"]
+    + error : str | None
+  }
+
+  enum Phase {
+    DISCOVERY
+    CONFIRMATION
+    QA
+  }
+}
+
+@enduml
