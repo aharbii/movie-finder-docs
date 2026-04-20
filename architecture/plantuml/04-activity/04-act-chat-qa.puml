@@ -48,17 +48,18 @@ endif
 |LangGraph Chain (Q&A Node)|
 :Load phase=QA from persistent checkpointer;
 :Load confirmed_movie from JSONB state;
-:Build system prompt:\n"You are an expert on {movie_title}...";
+:Build system prompt:\n"You are an expert on <movie_title>...";
 :Append conversation history as context;
 :Call LLMProvider.generate()\n(Claude Sonnet via LLMProviderFactory);
 
-loop for each response chunk
-  :Receive delta from AI provider;
+repeat
+  :Receive delta token from AI provider;
   |FastAPI Backend|
-  :Emit SSE event (data: {chunk});
+  :Emit SSE event (data: token);
   |User (Browser)|
-  :Append chunk to message bubble;
-end loop
+  :Append token to message bubble;
+repeat while (more chunks?) is (yes)
+->no;
 
 |LangGraph Chain (Q&A Node)|
 :Assemble complete response;

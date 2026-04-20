@@ -34,10 +34,7 @@ database "PostgreSQL\n(PostgresSaver checkpointer)" as postgres_checkpointer
 ' ─────────────────────────────────────────────────────────
 package "chain/ (LangGraph module)" #F9F0FF {
 
-  component "MovieFinderGraph\n(graph.py)" as graph {
-    port "compile_graph(checkpointer)" as p_compile
-    port "stream_events(msg, history, phase)" as p_stream
-  }
+  component "MovieFinderGraph\n(graph.py)\ncompile_graph(checkpointer)\nstream_events(msg, history, phase)" as graph
 
   package "LangGraph Nodes (pure functions)" #EDE7F6 {
     component "[1] ClassifyNode" as n_classify
@@ -66,7 +63,7 @@ package "chain/ (LangGraph module)" #F9F0FF {
 ' ─────────────────────────────────────────────────────────
 n_classify --> svc_llm : classify intent\n(Haiku provider)
 n_rag --> svc_embed : embed query
-n_rag --> svc_qdrant : top-K search\n({env}_movies collection)
+n_rag --> svc_qdrant : top-K search\n(<env>_movies collection)
 n_imdb --> svc_imdb : parallel metadata fetch
 n_present --> svc_llm : generate response\n(Sonnet provider)
 n_qa --> svc_llm : answer question\n(Sonnet provider)
