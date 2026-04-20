@@ -1,4 +1,4 @@
-@startuml 05-langgraph-statemachine
+@startuml 01-st-langgraph-phases
 title Movie Finder — LangGraph Phase & Routing State Machine
 
 skinparam backgroundColor white

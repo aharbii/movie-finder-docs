@@ -1,4 +1,4 @@
-@startuml 08-seq-chat-sse
+@startuml 02-seq-chat-sse
 title Movie Finder — Chat & SSE Streaming Flow (Sequence Diagram)
 
 skinparam backgroundColor white

@@ -1,4 +1,4 @@
-@startuml 10-deployment-azure
+@startuml 02-deployment-azure
 title Movie Finder — Production Deployment (Azure)
 
 skinparam backgroundColor white

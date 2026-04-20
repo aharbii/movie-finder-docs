@@ -1,4 +1,4 @@
-@startuml 02-system-architecture
+@startuml 01-system-context
 title Movie Finder — System Architecture Overview
 
 skinparam backgroundColor white

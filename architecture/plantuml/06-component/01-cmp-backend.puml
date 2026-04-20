@@ -1,4 +1,4 @@
-@startuml 03-backend-architecture
+@startuml 01-cmp-backend
 title Movie Finder — Backend Internal Architecture
 
 skinparam backgroundColor white

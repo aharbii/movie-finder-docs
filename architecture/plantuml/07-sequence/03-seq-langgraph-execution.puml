@@ -1,4 +1,4 @@
-@startuml 09-seq-langgraph-execution
+@startuml 03-seq-langgraph-execution
 title Movie Finder — LangGraph Pipeline Execution (Sequence Diagram)
 
 skinparam backgroundColor white
