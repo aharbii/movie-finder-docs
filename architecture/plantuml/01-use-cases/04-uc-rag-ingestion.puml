@@ -1,0 +1,86 @@
+@startuml 04-uc-rag-ingestion
+title Movie Finder — Use Case: RAG Ingestion Pipeline (Target Architecture)
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ActorBackgroundColor #FFF9C4
+skinparam ActorBorderColor #F57F17
+skinparam ActorFontSize 13
+skinparam UsecaseBackgroundColor #EEF2FF
+skinparam UsecaseBorderColor #3D6DB5
+skinparam UsecaseFontSize 12
+skinparam ArrowColor #555555
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+
+actor "Data Engineer" as de
+actor "GitHub Actions\n(Parameterized Job)" as gha <<external system>>
+actor "Embedding Provider\n(OpenAI / Anthropic / Ollama)" as embedder <<external system>>
+actor "Vector Store\n(Qdrant / Pinecone / Weaviate)" as vstore <<external system>>
+actor "Kaggle / CSV\n(dataset source)" as kaggle <<external system>>
+
+rectangle "Movie Finder — RAG Ingestion (offline / CI)" {
+  usecase "Trigger ingestion run\n(with runtime parameters)" as UC_TRIGGER
+  usecase "Select embedding provider\n(EMBEDDING_PROVIDER env var)" as UC_SELECT_EMBED
+  usecase "Select vector store\n(VECTOR_STORE env var)" as UC_SELECT_STORE
+  usecase "Select chunking strategy\n(CHUNKING_STRATEGY env var)" as UC_SELECT_CHUNK
+  usecase "Select target environment\n(ENV: dev / staging / prod)" as UC_SELECT_ENV
+  usecase "Download dataset\n(Kaggle CSV)" as UC_DOWNLOAD
+  usecase "Parse & validate\nmovie records" as UC_PARSE
+  usecase "Chunk text\n(pluggable strategy)" as UC_CHUNK
+  usecase "Batch embed chunks\n(provider batch API)" as UC_EMBED
+  usecase "Upsert vectors to\nenvironment-scoped collection" as UC_UPSERT
+  usecase "Export ingestion metrics\n(count, cost, duration)" as UC_METRICS
+  usecase "Backup vector store\n(pre-ingestion snapshot)" as UC_BACKUP
+}
+
+de --> UC_TRIGGER
+gha --> UC_TRIGGER
+
+UC_TRIGGER ..> UC_SELECT_EMBED : <<include>>
+UC_TRIGGER ..> UC_SELECT_STORE : <<include>>
+UC_TRIGGER ..> UC_SELECT_CHUNK : <<include>>
+UC_TRIGGER ..> UC_SELECT_ENV : <<include>>
+
+UC_TRIGGER ..> UC_DOWNLOAD : <<include>>
+UC_DOWNLOAD --> kaggle
+UC_DOWNLOAD ..> UC_PARSE : <<include>>
+UC_PARSE ..> UC_CHUNK : <<include>>
+UC_CHUNK ..> UC_EMBED : <<include>>
+UC_EMBED --> embedder
+UC_EMBED ..> UC_UPSERT : <<include>>
+UC_UPSERT --> vstore
+UC_UPSERT ..> UC_METRICS : <<include>>
+UC_METRICS --> gha
+
+UC_BACKUP ..> UC_UPSERT : <<extends>>
+
+note right of UC_SELECT_ENV
+  Issue #14 — each environment
+  writes to an isolated collection:
+  {env}_movies (dev_movies,
+  staging_movies, movies)
+end note
+
+note right of UC_SELECT_CHUNK
+  Issue #31 — ChunkingStrategy
+  interface: FixedSizeChunker,
+  SemanticChunker,
+  SentenceBasedChunker
+end note
+
+note right of UC_SELECT_EMBED
+  Issue #33 / ADR-0008 —
+  EmbeddingProviderFactory
+  supports: OpenAI, Anthropic,
+  Ollama, Sentence-Transformers
+end note
+
+note right of UC_METRICS
+  Issue #29 — metrics exported
+  as GitHub Actions step summary
+  and JSON artifact
+end note
+
+@enduml

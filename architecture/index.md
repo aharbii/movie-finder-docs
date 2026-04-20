@@ -11,7 +11,7 @@ This section documents the Movie Finder architecture at multiple levels of detai
 | ---------------------------------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------- |
 | [`workspace.dsl`](https://github.com/aharbii/movie-finder-docs/blob/main/architecture/workspace.dsl) | Structurizr DSL (C4) | L1 System Context · L2 Containers · L3 Components · Deployment |
 | [PlantUML Diagrams](plantuml/index.md)                                                               | PlantUML (`.puml`)   | Class · Component · Sequence · State · Deployment diagrams     |
-| [`decisions/`](decisions/index.md)                                                                   | Markdown ADRs        | Architecture decision records                                  |
+| [`decisions/`](decisions/0000-register.md)                                                           | Markdown ADRs        | Architecture decision records                                  |
 
 ---
 

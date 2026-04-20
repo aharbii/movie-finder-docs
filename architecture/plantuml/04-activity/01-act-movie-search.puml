@@ -1,0 +1,80 @@
+@startuml 01-act-movie-search
+title Movie Finder — Activity Diagram: Movie Search End-to-End Flow
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ArrowColor #555555
+skinparam ActivityBackgroundColor #EEF2FF
+skinparam ActivityBorderColor #3D6DB5
+skinparam ActivityFontSize 12
+skinparam ActivityDiamondBackgroundColor #FFF9C4
+skinparam ActivityDiamondBorderColor #F57F17
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam PartitionBackgroundColor #FAFAFA
+skinparam PartitionBorderColor #AAAAAA
+
+|User (Browser)|
+start
+:Describe half-remembered film\nin natural language;
+:Submit chat message (POST /chat);
+
+|FastAPI Backend|
+:Validate JWT bearer token;
+if (Token valid?) then (no)
+  :Return 401 Unauthorized;
+  stop
+else (yes)
+endif
+:Validate message length;
+:Load or create session (PostgreSQL);
+:Save user message to DB;
+:Start LangGraph stream (stream_events());
+
+|LangGraph Chain|
+:Classify query intent (Claude Haiku);
+:Embed query\n(EmbeddingProvider — injected singleton);
+:Vector search in environment-scoped collection\n(Qdrant {env}_movies, top-K cosine);
+:Parallel IMDb metadata fetch (async gather);
+:Validate & rank candidates\n(deduplicate · confidence sort);
+
+if (Enough high-confidence candidates?) then (no)
+  :Request clarification from user;
+  |FastAPI Backend|
+  :Stream clarification event (SSE);
+  |User (Browser)|
+  :Receive clarification request;
+  :Provide more detail;
+  |LangGraph Chain|
+else (yes)
+endif
+
+:Generate candidate list response (Claude Sonnet);
+:Emit presentation chunks (SSE delta events);
+
+|FastAPI Backend|
+:Forward SSE chunks to browser;
+:Save assistant message to DB;
+:Update session phase → DISCOVERY;
+
+|User (Browser)|
+:Receive streaming response (EventSource tokens);
+:Render candidate cards;
+
+if (User confirms a movie?) then (yes)
+  :Click confirm;
+  |FastAPI Backend|
+  :Update session phase → CONFIRMATION;
+  :Store confirmed_movie as JSONB;
+  |User (Browser)|
+  :Receive confirmation & movie details;
+  stop
+else (no)
+  :Refine with more detail;
+  |LangGraph Chain|
+endif
+
+stop
+
+@enduml

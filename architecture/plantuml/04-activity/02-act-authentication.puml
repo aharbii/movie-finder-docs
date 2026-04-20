@@ -1,0 +1,119 @@
+@startuml 02-act-authentication
+title Movie Finder — Activity Diagram: Authentication Flows
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ArrowColor #555555
+skinparam ActivityBackgroundColor #EEF2FF
+skinparam ActivityBorderColor #3D6DB5
+skinparam ActivityFontSize 12
+skinparam ActivityDiamondBackgroundColor #FFF9C4
+skinparam ActivityDiamondBorderColor #F57F17
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam PartitionBackgroundColor #FAFAFA
+skinparam PartitionBorderColor #AAAAAA
+
+' ═══════════════════════════════════════════
+' REGISTER
+' ═══════════════════════════════════════════
+|User|
+start
+:Submit registration form\n(username, email, password);
+
+|FastAPI Auth Router|
+:Validate field formats (Pydantic);
+if (Validation passes?) then (no)
+  :Return 422 Unprocessable Entity;
+  stop
+else (yes)
+endif
+
+:Check username uniqueness;
+if (Username taken?) then (yes)
+  :Return 409 Conflict;
+  stop
+else (no)
+endif
+
+:Hash password (bcrypt, cost=12);
+:Create user record (PostgreSQL);
+:Return 201 Created (UserPublic — no password hash);
+
+|User|
+:Redirect to login;
+
+' ═══════════════════════════════════════════
+' LOGIN
+' ═══════════════════════════════════════════
+:Submit login form (username, password);
+
+|FastAPI Auth Router|
+:Check rate limit (SlowAPI);
+if (Rate limit exceeded?) then (yes)
+  :Return 429 Too Many Requests\n(Retry-After header);
+  stop
+else (no)
+endif
+
+:Look up user by username;
+if (User found?) then (no)
+  :Return 401 Unauthorized;
+  stop
+else (yes)
+endif
+
+:Verify password (bcrypt.checkpw);
+if (Password matches?) then (no)
+  :Return 401 Unauthorized;
+  stop
+else (yes)
+endif
+
+:Sign access token (JWT, 30 min TTL, HS256);
+:Generate refresh token (opaque 256-bit random);
+:Store refresh token hash (PostgreSQL, 7 day TTL, revoked=FALSE);
+:Return TokenPair (access + refresh);
+
+|User|
+:Store tokens in memory (Angular Signal);
+
+' ═══════════════════════════════════════════
+' REFRESH
+' ═══════════════════════════════════════════
+:Access token expires (401 intercepted);
+
+|Angular TokenRefreshInterceptor|
+:Call POST /auth/refresh;
+
+|FastAPI Auth Router|
+:Validate refresh token\n(hash lookup, expiry, revoked flag);
+if (Refresh token valid?) then (no)
+  :Return 401 — force re-login;
+  stop
+else (yes)
+endif
+:Issue new access token (JWT, 30 min);
+:Return new access token;
+
+|Angular TokenRefreshInterceptor|
+:Retry original request with new token;
+
+' ═══════════════════════════════════════════
+' LOGOUT
+' ═══════════════════════════════════════════
+|User|
+:Click logout;
+
+|FastAPI Auth Router|
+:Receive POST /auth/logout\n(refresh_token in body);
+:Mark refresh token revoked in DB\n(refresh_tokens.revoked = TRUE);
+:Return 204 No Content;
+
+|User|
+:Clear tokens from memory;
+:Redirect to login page;
+stop
+
+@enduml

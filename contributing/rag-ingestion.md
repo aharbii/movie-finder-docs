@@ -5,7 +5,7 @@ description: Contributing to the RAG ingestion pipeline (movie-finder-rag)
 
 # Contributing to the RAG Ingestion Pipeline
 
-This guide covers working on `backend/rag_ingestion/` — the offline pipeline that builds the Qdrant vector collection.
+This guide covers working on `rag/` — the offline pipeline that builds the Qdrant vector collection.
 Repo: `aharbii/movie-finder-rag`
 
 For cross-cutting conventions see the [Contributing Overview](index.md).
@@ -25,7 +25,7 @@ Run it once to populate Qdrant, then only again when the dataset or embedding mo
 
 ## Development setup
 
-`rag_ingestion/` is a standalone uv project (not a uv workspace member). From `backend/rag_ingestion/`:
+`rag_ingestion/` is a standalone uv project (not a uv workspace member). From `rag/`:
 
 ```bash
 make dev         # build + start dev container

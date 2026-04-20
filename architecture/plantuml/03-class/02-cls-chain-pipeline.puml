@@ -1,4 +1,4 @@
-@startuml 04-langgraph-pipeline
+@startuml 02-cls-chain-pipeline
 title Movie Finder — LangGraph Multi-Agent Pipeline (chain module)
 
 skinparam backgroundColor white

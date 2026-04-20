@@ -1,121 +1,48 @@
 ---
-title: PlantUML Architecture Diagrams
-description: UML architecture diagrams for Movie Finder — class, component, sequence, state, and deployment views
+title: UML Architecture Diagrams
+description: Enterprise-level UML modeling for Movie Finder — 8 diagram categories covering use cases, domain, class, activity, state, component, sequence, and database design.
 ---
 
-# Architecture Diagrams
+# UML Architecture Diagrams
 
-10 PlantUML diagrams covering the full Movie Finder architecture.
-Source files (`*.puml`) are in [`docs/architecture/plantuml/`](https://github.com/aharbii/movie-finder-docs/tree/main/architecture/plantuml).
+Enterprise-level UML modeling for the Movie Finder system. Diagrams model the **target architecture** — each open issue is represented by its solution contract, not its current broken state. Source files (`.puml`) are version-controlled in [`docs/architecture/plantuml/`](https://github.com/aharbii/movie-finder-docs/tree/main/architecture/plantuml). PNGs are generated at build time.
 
 !!! tip "Rendering locally"
-    Run the full documentation build from the repo root — no local PlantUML install required:
     ```bash
-    # Full docs build: prepares content, renders PlantUML PNGs, serves MkDocs
-    make mkdocs
-    # → http://localhost:8001
+    make mkdocs   # full build → http://localhost:8001
+    make plantuml # VS Code preview server → http://localhost:18088
     ```
-    Or start only the PlantUML server for VS Code live preview:
-    ```bash
-    make plantuml
-    # → http://localhost:18088
-    ```
-
-!!! note "VS Code preview"
-Open any `.puml` file and press `Option+D` (macOS) / `Alt+D` (Windows/Linux) for a live preview panel.
-The **jebbs.plantuml** extension is pre-configured in `.vscode/settings.json`.
+    Open any `.puml` file in VS Code and press `Option+D` / `Alt+D` with the **jebbs.plantuml** extension.
 
 ---
 
-## 01 — Domain Model
+## Diagram Categories
 
-Core data structures: identity, sessions, messaging, and AI pipeline state.
-
-![Domain Model](01-domain-model.png)
-
----
-
-## 02 — System Architecture Overview
-
-All runtime components, external services, and CI/CD pipeline in one view.
-
-![System Architecture](02-system-architecture.png)
-
----
-
-## 03 — Backend Internal Architecture
-
-FastAPI layer decomposition: routers, JWT middleware, session store, and configuration.
-
-![Backend Architecture](03-backend-architecture.png)
+| Category | Diagrams | Purpose |
+|---|---|---|
+| [00 — Context & Deployment](00-context/index.md) | System context, Azure deployment | System boundary and runtime topology |
+| [01 — Use Cases](01-use-cases/index.md) | 5 use case diagrams | Actor/role capabilities mapped to target solutions |
+| [02 — Domain Model](02-domain/index.md) | Domain entity model | Core entities and relationships |
+| [03 — Class Diagrams](03-class/index.md) | 5 class diagrams | OOP structure: interfaces, design patterns, all providers |
+| [04 — Activity Diagrams](04-activity/index.md) | 4 activity diagrams | Process flows: search, auth, RAG ingestion, Q&A |
+| [05 — State Diagrams](05-state/index.md) | 3 state machines | LangGraph phases, session lifecycle, token lifecycle |
+| [06 — Component Diagrams](06-component/index.md) | 4 component diagrams | Module structure and inter-service communication |
+| [07 — Sequence Diagrams](07-sequence/index.md) | 4 sequence diagrams | Auth flow, chat SSE, pipeline execution, RAG ingestion |
+| [08 — Database Design](08-database/index.md) | PostgreSQL ER diagram | Full schema with indexes, JSONB types, migration tracking |
 
 ---
 
-## 04 — LangGraph Pipeline (Class View)
+## Open Issues — Architecture Contracts
 
-The `chain` module: all 8 LangGraph nodes, their services, and the shared `MovieFinderState`.
+Each open issue is modeled as a solution in the relevant diagrams. These serve as implementation contracts.
 
-![LangGraph Pipeline](04-langgraph-pipeline.png)
-
----
-
-## 05 — LangGraph Phase State Machine
-
-Phase lifecycle (`discovery → confirmation → qa`), `next_action` routing signals, and refinement cycles.
-
-![LangGraph State Machine](05-langgraph-statemachine.png)
-
----
-
-## 06 — Frontend Architecture (Angular 21)
-
-Component tree, core services, guards, interceptors, and feature modules.
-
-![Frontend Architecture](06-frontend-architecture.png)
-
----
-
-## 07 — Authentication Flow (Sequence)
-
-Register, login, token refresh, and logout end-to-end.
-
-![Authentication Sequence](07-seq-authentication.png)
-
----
-
-## 08 — Chat & SSE Streaming Flow (Sequence)
-
-Full lifecycle from `EventSource` fetch through JWT validation, session persistence, LangGraph streaming, and SSE event handling.
-
-![Chat SSE Sequence](08-seq-chat-sse.png)
-
----
-
-## 09 — LangGraph Pipeline Execution (Sequence)
-
-All 8 nodes firing in sequence with conditional branching: discovery, confirmation, Q&A phase, and refinement cycles.
-
-![LangGraph Execution Sequence](09-seq-langgraph-execution.png)
-
----
-
-## 10 — Azure Production Deployment
-
-Container Apps environment, PostgreSQL Flexible Server, ACR, Key Vault, Qdrant Cloud, Jenkins CI/CD, and local docker compose reference.
-
-![Azure Deployment](10-deployment-azure.png)
-
----
-
-## Known Issues cross-reference
-
-Diagrams include inline `⚠ Issue #N` annotations for the issues that are still open in the current architecture docs. Quick reference:
-
-| GitHub Issue                                                                       | Severity | Diagrams       |
-| ---------------------------------------------------------------------------------- | -------- | -------------- |
-| [#7 Clients recreated per node](https://github.com/aharbii/movie-finder/issues/7)  | High     | 04, 09         |
-| [#8 IMDb retry 30 s delay](https://github.com/aharbii/movie-finder/issues/8)       | High     | 04, 09         |
-| [#12 UserInDB exposes hash](https://github.com/aharbii/movie-finder/issues/12)     | Medium   | 03, 07         |
-| [#14 Shared Qdrant cluster](https://github.com/aharbii/movie-finder/issues/14)     | Medium   | 02, 10         |
-| [#15 total=False TypedDict](https://github.com/aharbii/movie-finder/issues/15)     | Low      | 01, 04         |
-| [#17 ngrok for webhooks](https://github.com/aharbii/movie-finder/issues/17)        | Low      | 02, 10         |
+| Issue | Diagrams modeling the solution |
+|---|---|
+| [#14 Shared Qdrant cluster](https://github.com/aharbii/movie-finder/issues/14) | Component (inter-service), Class (RAG), Activity (RAG), Sequence (RAG), Use Cases (RAG) |
+| [#17 Jenkins ngrok webhooks](https://github.com/aharbii/movie-finder/issues/17) | Component (inter-service), Context |
+| [#21 Migrate CI to GitHub Actions](https://github.com/aharbii/movie-finder/issues/21) | Component (inter-service), Activity (RAG), Sequence (RAG) |
+| [#22 Infrastructure as Code (Terraform/Bicep)](https://github.com/aharbii/movie-finder/issues/22) | Component (inter-service), Context (deployment) |
+| [#29 Parameterized CI ingestion job + metrics](https://github.com/aharbii/movie-finder/issues/29) | Use Cases (RAG), Activity (RAG), Sequence (RAG), Class (RAG) |
+| [#31 Chunking strategy framework](https://github.com/aharbii/movie-finder/issues/31) | Class (RAG), Activity (RAG), Sequence (RAG), Design patterns |
+| [#33 Expand provider support](https://github.com/aharbii/movie-finder/issues/33) | Class (RAG), Design patterns, Component (chain, inter-service) |
+| [#42 LLM & Embedding Provider Factory (ADR-0008)](https://github.com/aharbii/movie-finder/issues/42) | Class (design patterns, RAG, chain), Component (chain, inter-service), Activity (RAG) |

@@ -29,8 +29,8 @@ architecture/.structurizr/
 # ── PlantUML rendered outputs ─────────────────────────────────────────────────
 # PNGs are generated at doc-build time by scripts/prepare-docs.sh.
 # Source of truth is the *.puml files, which ARE committed.
-# Regenerate with: plantuml -png docs/architecture/plantuml/*.puml
-architecture/plantuml/*.png
+# Regenerate with: make mkdocs  (or: plantuml -png -r docs/architecture/plantuml/)
+architecture/plantuml/**/*.png
 
 # ── OS ───────────────────────────────────────────────────────────────────────
 .DS_Store

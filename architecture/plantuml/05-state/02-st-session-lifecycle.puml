@@ -1,0 +1,67 @@
+@startuml 02-st-session-lifecycle
+title Movie Finder — Session Lifecycle State Machine
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ArrowColor #555555
+skinparam ArrowFontSize 11
+skinparam StateBackgroundColor #EEF2FF
+skinparam StateBorderColor #3D6DB5
+skinparam StateHeaderBackgroundColor #3D6DB5
+skinparam StateHeaderFontColor white
+skinparam StateFontSize 12
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam StartColor #222222
+skinparam EndColor #222222
+
+[*] --> Created : POST /chat\n(no session_id)
+
+state "CREATED" as Created {
+  Created : Empty session record in PostgreSQL
+  Created : phase = "discovery"
+  Created : checkpointer thread initialised
+}
+
+Created --> Discovery : First user message received
+
+state "DISCOVERY" as Discovery {
+  Discovery : RAG vector search running
+  Discovery : Candidate list assembled
+  Discovery : Clarification rounds possible
+  Discovery : State persisted via PostgresSaver
+}
+
+Discovery --> Discovery : User refines search\n(next_action=refine)
+Discovery --> Confirmation : High-confidence candidates\nreturned (next_action=confirm)
+
+state "CONFIRMATION" as Confirmation {
+  Confirmation : Candidate list presented to user
+  Confirmation : Awaiting explicit user selection
+  Confirmation : confirmed_movie = NULL (JSONB column)
+}
+
+Confirmation --> Discovery : User rejects all candidates
+Confirmation --> QA : User confirms a movie\n(confirmed_movie set as JSONB)
+
+state "Q&A" as QA {
+  QA : confirmed_movie set in state
+  QA : Open-ended follow-up chat
+  QA : Full history used as context
+  QA : phase = "qa"
+}
+
+QA --> QA : Follow-up question\n(same session)
+QA --> Ended : User navigates away\nor session TTL reached
+Discovery --> Ended : Timeout or explicit end
+Confirmation --> Ended : Timeout
+
+state "ENDED" as Ended {
+  Ended : Session record retained in PostgreSQL
+  Ended : History paginated via GET /chat/sessions
+}
+
+Ended --> [*]
+
+@enduml

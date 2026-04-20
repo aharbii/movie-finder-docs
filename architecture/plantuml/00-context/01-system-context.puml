@@ -1,4 +1,4 @@
-@startuml 02-system-architecture
+@startuml 01-system-context
 title Movie Finder — System Architecture Overview
 
 skinparam backgroundColor white
@@ -47,13 +47,14 @@ package "Movie Finder Platform" #F8F9FA {
       component [Session Store] as session_store <<asyncpg>>
       component [Shared LangGraph\nCheckpointer] as checkpointer <<BaseCheckpointSaver>>
       component [LangGraph Chain\n(8 nodes)] as chain <<LangGraph / LangChain>>
-      component [RAG Service] as rag_svc <<qdrant-client / openai>>
+      component [LLM Factory] as llm_factory <<Provider Abstraction>>
+      component [RAG Service] as rag_svc <<Dynamic Collection Resolution>>
       component [IMDb API Client] as imdb_client <<httpx / tenacity>>
     }
   }
 
   package "Offline / Scheduled" #FFFFFF {
-    component [RAG Ingestion Pipeline] as rag_ingest <<kagglehub / pandas / openai>>
+    component [RAG Ingestion Pipeline] as rag_ingest <<kagglehub / pandas>>
   }
 
 }
@@ -71,8 +72,8 @@ package "Azure Managed Services" #E8F5E9 {
 ' External Services
 ' ─────────────────────────────────────────────────────────
 cloud "Qdrant Cloud\n(Vector DB)" as qdrant <<HTTPS / gRPC>>
-cloud "OpenAI API\n(text-embedding-3-large)" as openai <<HTTPS>>
-cloud "Anthropic Claude API\n(Haiku + Sonnet)" as anthropic <<HTTPS>>
+cloud "Embedding APIs\n(OpenAI, HuggingFace, etc.)" as embeddings <<HTTPS / Local>>
+cloud "LLM APIs\n(Anthropic, Groq, Ollama, etc.)" as llm_apis <<HTTPS / Local>>
 cloud "imdbapi.dev\n(Movie Metadata)" as imdbapi <<HTTPS>>
 
 ' ─────────────────────────────────────────────────────────
@@ -107,9 +108,10 @@ chat_router --> chain : stream_events(message, history, phase)
 chain --> checkpointer : load/save conversation checkpoints
 chain --> rag_svc : RAG Search node
 chain --> imdb_client : IMDb Enrichment node
-chain --> anthropic : Claude Haiku (classify)\nClaude Sonnet (refine, Q&A)
-rag_svc --> openai : embed(query) →\ntext-embedding-3-large
-rag_svc --> qdrant : similarity_search(vector, top_K)
+chain --> llm_factory : Inject singletons:\nClassifier & Reasoning LLMs
+llm_factory --> llm_apis : Dynamic routing based on .env
+rag_svc --> embeddings : embed(query) via Factory
+rag_svc --> qdrant : similarity_search\n(on {prefix}_{model}_{dim})
 imdb_client --> imdbapi : search + title details\n(parallel, async)
 
 ' ─────────────────────────────────────────────────────────
@@ -141,8 +143,8 @@ acr --> backend : supply container image
 ' ─────────────────────────────────────────────────────────
 ' Relationships — RAG Ingestion (offline)
 ' ─────────────────────────────────────────────────────────
-rag_ingest --> openai : batch embed movie plots\n(text-embedding-3-large)
-rag_ingest --> qdrant : upsert 3072-dim vectors\n(movies collection)
+rag_ingest --> embeddings : batch embed movie plots
+rag_ingest --> qdrant : upsert vectors to\n{prefix}_{model}_{dim}
 
 note bottom of qdrant
   ⚠ Issue #14: single production Qdrant

@@ -1,0 +1,90 @@
+@startuml 03-st-token-lifecycle
+title Movie Finder — JWT & Refresh Token Lifecycle State Machine
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ArrowColor #555555
+skinparam ArrowFontSize 11
+skinparam StateBackgroundColor #EEF2FF
+skinparam StateBorderColor #3D6DB5
+skinparam StateHeaderBackgroundColor #3D6DB5
+skinparam StateHeaderFontColor white
+skinparam StateFontSize 12
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam StartColor #222222
+skinparam EndColor #222222
+
+' ─────────────────────────────────────────────────────────
+' Access Token lifecycle
+' ─────────────────────────────────────────────────────────
+state "ACCESS TOKEN" as AT {
+  [*] --> AT_Issued : POST /auth/login\nPOST /auth/refresh
+
+  state "Issued" as AT_Issued {
+    AT_Issued : Signed JWT (HS256)
+    AT_Issued : TTL = 30 minutes
+    AT_Issued : Claims: sub, exp, iat
+  }
+
+  AT_Issued --> AT_Valid : Presented in\nAuthorization header
+
+  state "Valid" as AT_Valid {
+    AT_Valid : JWTBearer verifies signature + exp
+    AT_Valid : Minimal UserPublic loaded (no password)
+  }
+
+  AT_Valid --> AT_Expired : TTL elapsed (exp < now)
+  AT_Expired --> [*] : Client uses refresh token
+
+  state "Expired" as AT_Expired {
+    AT_Expired : Backend returns 401
+    AT_Expired : Angular interceptor triggers refresh
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' Refresh Token lifecycle
+' ─────────────────────────────────────────────────────────
+state "REFRESH TOKEN" as RT {
+  [*] --> RT_Issued : POST /auth/login
+
+  state "Issued" as RT_Issued {
+    RT_Issued : Opaque random bytes (256-bit)
+    RT_Issued : SHA-256 hash stored in PostgreSQL
+    RT_Issued : TTL = 7 days
+    RT_Issued : revoked = FALSE
+  }
+
+  RT_Issued --> RT_Active : Client stores in\nmemory (Angular Signal)
+
+  state "Active" as RT_Active {
+    RT_Active : Used to obtain new access tokens
+    RT_Active : POST /auth/refresh validates hash + expiry + revoked flag
+  }
+
+  RT_Active --> RT_Refreshed : New access token issued
+
+  state "Refreshed" as RT_Refreshed {
+    RT_Refreshed : Refresh token remains active\nuntil TTL or revocation
+  }
+
+  RT_Active --> RT_Expired : 7-day TTL elapsed
+  RT_Active --> RT_Revoked : POST /auth/logout
+
+  state "Expired" as RT_Expired {
+    RT_Expired : DB expiry check fails
+    RT_Expired : validate() returns False
+  }
+
+  state "Revoked" as RT_Revoked {
+    RT_Revoked : revoked = TRUE set in DB
+    RT_Revoked : validate() returns False on revoked flag check
+  }
+
+  RT_Expired --> [*] : Re-login required
+  RT_Revoked --> [*] : Re-login required
+}
+
+@enduml

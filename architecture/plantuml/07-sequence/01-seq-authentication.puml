@@ -1,4 +1,4 @@
-@startuml 07-seq-authentication
+@startuml 01-seq-authentication
 title Movie Finder — Authentication Flow (Sequence Diagram)
 
 skinparam backgroundColor white

@@ -1,4 +1,4 @@
-@startuml 06-frontend-architecture
+@startuml 03-cmp-frontend
 title Movie Finder — Frontend Architecture (Angular 21)
 
 skinparam backgroundColor white

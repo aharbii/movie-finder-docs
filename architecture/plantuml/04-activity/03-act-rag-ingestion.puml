@@ -1,0 +1,106 @@
+@startuml 03-act-rag-ingestion
+title Movie Finder — Activity Diagram: RAG Ingestion Pipeline (Target Architecture)
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ArrowColor #555555
+skinparam ActivityBackgroundColor #E8F5E9
+skinparam ActivityBorderColor #388E3C
+skinparam ActivityFontSize 12
+skinparam ActivityDiamondBackgroundColor #FFF9C4
+skinparam ActivityDiamondBorderColor #F57F17
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam PartitionBackgroundColor #FAFAFA
+skinparam PartitionBorderColor #AAAAAA
+
+|GitHub Actions (Parameterized Job)|
+start
+:Receive workflow_dispatch trigger\nor scheduled run;
+:Read job parameters:\n  EMBEDDING_PROVIDER (openai/anthropic/ollama)\n  VECTOR_STORE (qdrant/pinecone/weaviate)\n  CHUNKING_STRATEGY (fixed/semantic/sentence)\n  ENV (dev/staging/prod)\n  BATCH_SIZE;
+
+note right
+  Issue #29 — parameterized job
+  allows runtime provider + strategy
+  selection without code changes
+end note
+
+|IngestionPipeline|
+:EmbeddingProviderFactory.create(settings);
+:VectorStoreFactory.create(settings);
+:ChunkingStrategyFactory.create(settings);
+
+note right
+  Issue #42 / ADR-0008 —
+  factories select the correct
+  provider implementation based
+  on EMBEDDING_PROVIDER env var
+end note
+
+|DatasetLoader|
+:Locate CSV source (Kaggle / local path);
+:Parse records (title, plot, genres, year, rating);
+:Validate mandatory fields (skip malformed rows);
+
+|ChunkingStrategy|
+if (Strategy = semantic?) then (yes)
+  :Segment using cosine similarity\nbetween consecutive sentence embeddings;
+  note right
+    Issue #31 — SemanticChunker
+    preserves plot coherence
+    better than fixed-size splits
+  end note
+else if (Strategy = sentence?) then (yes)
+  :Group sentences into\nmax N-sentence windows;
+else (fixed)
+  :Split into fixed-size chunks\n(chunk_size=512, overlap=64);
+endif
+:Attach payload metadata\n(title, year, genres, imdb_id);
+
+|EmbeddingProvider|
+:Batch embed chunks\n(provider batch API, up to 2048 texts/call);
+
+note right
+  Batch embedding reduces API
+  calls from N to ceil(N/2048)
+end note
+
+|VectorStoreProvider|
+:Resolve collection name:\n{env}_movies (dev_movies / staging_movies / movies);
+
+note right
+  Issue #14 — environment-scoped
+  collection name prevents
+  cross-environment data leakage
+end note
+
+if (Collection exists?) then (no)
+  :Create collection\n(dim from provider, cosine metric);
+else (yes)
+endif
+:Batch upsert vectors\n(chunks + embeddings + payloads);
+
+|IngestionPipeline|
+:Compute IngestionMetrics\n(total, embedded, upserted, failed,\nduration_s, cost_usd, strategy, provider, env);
+
+|GitHub Actions (Parameterized Job)|
+:Write step summary (markdown metrics table);
+:Upload JSON artifact (ingestion-metrics.json);
+
+note right
+  Issue #29 — step summary
+  and artifact allow cost tracking
+  and regression detection per run
+end note
+
+if (Success rate >= 99%?) then (yes)
+  :Mark job PASSED;
+  stop
+else (no)
+  :Mark job FAILED;
+  :Alert via GitHub notification;
+  stop
+endif
+
+@enduml

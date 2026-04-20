@@ -1,0 +1,66 @@
+@startuml 01-uc-movie-search
+title Movie Finder — Use Case: Movie Search
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ActorBackgroundColor #FFF9C4
+skinparam ActorBorderColor #F57F17
+skinparam ActorFontSize 13
+skinparam UsecaseBackgroundColor #EEF2FF
+skinparam UsecaseBorderColor #3D6DB5
+skinparam UsecaseFontSize 12
+skinparam ArrowColor #555555
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+
+actor "User\n(Authenticated)" as user
+actor "Qdrant Cloud\n(Vector Store)" as qdrant <<external system>>
+actor "Claude Haiku\n(Anthropic API)" as haiku <<external system>>
+actor "Claude Sonnet\n(Anthropic API)" as sonnet <<external system>>
+actor "IMDb API\n(imdbapi.dev)" as imdb <<external system>>
+
+rectangle "Movie Finder System" {
+  usecase "Describe a half-remembered film\nin natural language" as UC_DESCRIBE
+  usecase "Submit search query" as UC_SUBMIT
+  usecase "Receive candidate list\nwith metadata" as UC_RECEIVE_CANDIDATES
+  usecase "Refine search\n(provide more detail)" as UC_REFINE
+  usecase "Confirm movie match" as UC_CONFIRM
+  usecase "View movie details\n(IMDb metadata)" as UC_DETAILS
+
+  ' ── AI pipeline sub-cases ──
+  usecase "Classify query intent\n(Claude Haiku)" as UC_CLASSIFY
+  usecase "Semantic vector search\n(Qdrant top-K)" as UC_VECTOR
+  usecase "Fetch IMDb metadata\n(async parallel)" as UC_IMDB
+  usecase "Validate & rank candidates\n(confidence score)" as UC_VALIDATE
+  usecase "Generate natural-language\nresponse (Claude Sonnet)" as UC_GENERATE
+}
+
+user --> UC_DESCRIBE
+user --> UC_SUBMIT
+user --> UC_RECEIVE_CANDIDATES
+user --> UC_REFINE
+user --> UC_CONFIRM
+user --> UC_DETAILS
+
+UC_SUBMIT ..> UC_CLASSIFY : <<include>>
+UC_CLASSIFY ..> UC_VECTOR : <<include>>
+UC_VECTOR ..> UC_IMDB : <<include>>
+UC_IMDB ..> UC_VALIDATE : <<include>>
+UC_VALIDATE ..> UC_GENERATE : <<include>>
+UC_REFINE ..> UC_SUBMIT : <<extends>>
+
+UC_CLASSIFY --> haiku
+UC_VECTOR --> qdrant
+UC_IMDB --> imdb
+UC_GENERATE --> sonnet
+
+note right of UC_VECTOR
+  ⚠ Issue #14 — shared Qdrant
+  cluster across all environments
+  (dev / staging / prod)
+end note
+
+@enduml

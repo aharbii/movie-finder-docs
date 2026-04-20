@@ -1,0 +1,57 @@
+@startuml 03-uc-chat-qa
+title Movie Finder — Use Case: Chat & Q&A
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ActorBackgroundColor #FFF9C4
+skinparam ActorBorderColor #F57F17
+skinparam ActorFontSize 13
+skinparam UsecaseBackgroundColor #EEF2FF
+skinparam UsecaseBorderColor #3D6DB5
+skinparam UsecaseFontSize 12
+skinparam ArrowColor #555555
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+
+actor "User\n(Authenticated)" as user
+actor "Claude Sonnet\n(Anthropic API)" as sonnet <<external system>>
+database "PostgreSQL\n(asyncpg)" as pg <<external system>>
+
+rectangle "Movie Finder — Chat System" {
+  usecase "Send natural-language\nmessage" as UC_SEND
+  usecase "Receive streamed\nresponse (SSE)" as UC_STREAM
+  usecase "Ask follow-up\nquestions about a movie" as UC_FOLLOWUP
+  usecase "View conversation\nhistory" as UC_HISTORY
+  usecase "List all sessions\n(paginated)" as UC_LIST_SESSIONS
+  usecase "Continue prior\nsession" as UC_CONTINUE
+  usecase "Validate message\nlength & format" as UC_VALIDATE_MSG
+
+  usecase "Persist message\nto DB" as UC_PERSIST
+  usecase "Load session context\n& conversation history" as UC_LOAD_CTX
+  usecase "Stream AI response\nchunk by chunk" as UC_CHUNK_STREAM
+  usecase "Update session phase\n(discovery → qa)" as UC_PHASE_UPDATE
+}
+
+user --> UC_SEND
+user --> UC_STREAM
+user --> UC_FOLLOWUP
+user --> UC_HISTORY
+user --> UC_LIST_SESSIONS
+user --> UC_CONTINUE
+
+UC_SEND ..> UC_VALIDATE_MSG : <<include>>
+UC_SEND ..> UC_LOAD_CTX : <<include>>
+UC_SEND ..> UC_PERSIST : <<include>>
+UC_LOAD_CTX --> pg
+UC_PERSIST --> pg
+
+UC_STREAM ..> UC_CHUNK_STREAM : <<include>>
+UC_CHUNK_STREAM --> sonnet
+UC_CHUNK_STREAM ..> UC_PHASE_UPDATE : <<include>>
+UC_PHASE_UPDATE --> pg
+
+UC_FOLLOWUP ..> UC_SEND : <<extends>>
+UC_CONTINUE ..> UC_LOAD_CTX : <<include>>
+
+@enduml

@@ -1,0 +1,205 @@
+@startuml 05-cls-frontend-components
+title Movie Finder — Class Diagram: Angular 21 Frontend Components & Services
+
+skinparam backgroundColor white
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam classFontSize 12
+skinparam classAttributeFontSize 11
+skinparam ArrowColor #555555
+skinparam ClassBackgroundColor #F8F9FA
+skinparam ClassBorderColor #E65100
+skinparam ClassHeaderBackgroundColor #E65100
+skinparam ClassHeaderFontColor white
+skinparam InterfaceBackgroundColor #FFF3E0
+skinparam InterfaceBorderColor #E65100
+skinparam AbstractBackgroundColor #FFF3E0
+skinparam AbstractBorderColor #E65100
+skinparam PackageBorderColor #AAAAAA
+skinparam PackageBackgroundColor #FAFAFA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+
+' ─────────────────────────────────────────────────────────
+' Domain Types (TypeScript interfaces)
+' ─────────────────────────────────────────────────────────
+package "domain" #F0F4FF {
+  class User <<interface>> {
+    + id : number
+    + username : string
+    + email : string
+  }
+
+  class TokenPair <<interface>> {
+    + access_token : string
+    + refresh_token : string
+    + token_type : string
+  }
+
+  class ChatMessage <<interface>> {
+    + role : "user" | "assistant"
+    + content : string
+    + timestamp : Date
+  }
+
+  class SessionSummary <<interface>> {
+    + id : string
+    + phase : string
+    + created_at : Date
+  }
+
+  class MovieCandidate <<interface>> {
+    + title : string
+    + year : number
+    + confidence : number
+    + imdb_id : string
+    + genres : string[]
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' Services (Facade pattern over HttpClient)
+' ─────────────────────────────────────────────────────────
+package "services" #F0FFF0 {
+  class AuthService <<Injectable>> {
+    - http : HttpClient
+    - tokenSignal : WritableSignal<TokenPair | null>
+    --
+    + currentUser : Signal<User | null>
+    + isAuthenticated : Signal<boolean>
+    + login(username, password) : Observable<TokenPair>
+    + register(username, password, email) : Observable<User>
+    + logout() : Observable<void>
+    + refreshToken() : Observable<TokenPair>
+    - persistTokens(pair: TokenPair) : void
+    - clearTokens() : void
+  }
+
+  class ChatService <<Injectable>> {
+    - http : HttpClient
+    - messagesSignal : WritableSignal<ChatMessage[]>
+    --
+    + messages : Signal<ChatMessage[]>
+    + isStreaming : Signal<boolean>
+    + sendMessage(text, sessionId?) : Observable<void>
+    + streamResponse(sessionId) : EventSource
+    + getSessions() : Observable<SessionSummary[]>
+    + loadHistory(sessionId) : Observable<ChatMessage[]>
+  }
+
+  note right of ChatService
+    Uses native EventSource for SSE.
+    Signals for reactive UI updates
+    without BehaviorSubject.
+  end note
+}
+
+' ─────────────────────────────────────────────────────────
+' HTTP Interceptors
+' ─────────────────────────────────────────────────────────
+package "interceptors" #FFF0F8 {
+  class AuthInterceptor <<HttpInterceptorFn>> {
+    + intercept(req, next) : Observable<HttpEvent>
+    - attachBearer(req, token) : HttpRequest
+  }
+
+  class TokenRefreshInterceptor <<HttpInterceptorFn>> {
+    + intercept(req, next) : Observable<HttpEvent>
+    - handle401(req, next) : Observable<HttpEvent>
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' Guards
+' ─────────────────────────────────────────────────────────
+package "guards" #FFF8F0 {
+  class AuthGuard <<CanActivateFn>> {
+    + canActivate(route, state) : boolean | UrlTree
+  }
+
+  class GuestGuard <<CanActivateFn>> {
+    + canActivate(route, state) : boolean | UrlTree
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' Smart Components (own services, own state)
+' ─────────────────────────────────────────────────────────
+package "smart components" #E8EAF6 {
+  class AppComponent <<standalone>> {
+    - authService : AuthService
+    --
+    + isAuthenticated : Signal<boolean>
+  }
+
+  class ChatPageComponent <<standalone>> {
+    - chatService : ChatService
+    - authService : AuthService
+    --
+    + messages : Signal<ChatMessage[]>
+    + isStreaming : Signal<boolean>
+    + sessions : Signal<SessionSummary[]>
+    + sendMessage(text: string) : void
+    + selectSession(id: string) : void
+  }
+
+  class LoginPageComponent <<standalone>> {
+    - authService : AuthService
+    - router : Router
+    --
+    + loginForm : FormGroup
+    + onSubmit() : void
+  }
+
+  class RegisterPageComponent <<standalone>> {
+    - authService : AuthService
+    - router : Router
+    --
+    + registerForm : FormGroup
+    + onSubmit() : void
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' Dumb Components (Input only)
+' ─────────────────────────────────────────────────────────
+package "dumb components" #E8F5E9 {
+  class MessageBubbleComponent <<standalone>> {
+    + message : input<ChatMessage>()
+  }
+
+  class CandidateCardComponent <<standalone>> {
+    + candidate : input<MovieCandidate>()
+    + onConfirm : output<string>()
+  }
+
+  class SessionListComponent <<standalone>> {
+    + sessions : input<SessionSummary[]>()
+    + onSelect : output<string>()
+  }
+
+  class StreamingIndicatorComponent <<standalone>> {
+    + isStreaming : input<boolean>()
+  }
+}
+
+' ─────────────────────────────────────────────────────────
+' Relationships
+' ─────────────────────────────────────────────────────────
+ChatPageComponent --> ChatService : injects
+ChatPageComponent --> AuthService : injects
+LoginPageComponent --> AuthService : injects
+AppComponent --> AuthService : injects
+
+ChatPageComponent --> MessageBubbleComponent : renders
+ChatPageComponent --> CandidateCardComponent : renders
+ChatPageComponent --> SessionListComponent : renders
+ChatPageComponent --> StreamingIndicatorComponent : renders
+
+AuthInterceptor --> AuthService : reads token signal
+TokenRefreshInterceptor --> AuthService : calls refreshToken()
+AuthGuard --> AuthService : checks isAuthenticated
+
+@enduml
