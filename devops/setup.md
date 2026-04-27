@@ -93,6 +93,8 @@ Both application images use **multi-stage builds**:
 **Backend (`backend/Dockerfile`):**
 
 - uv version pinned to `0.5` series — reproducible, no surprise upgrades
+- `WITH_PROVIDERS` build arg installs only the selected chain provider SDK
+  bundle (`default-cloud`, `ollama-qdrant`, `local`, `cloud`, `all-providers`)
 - `--mount=type=cache,target=/root/.cache/uv` — uv download cache never enters the layer
 - `COPY --link` in the runtime stage — BuildKit resolves layers in parallel
 - `HEALTHCHECK` uses stdlib `urllib` — no `curl` installation needed in slim image
@@ -121,8 +123,8 @@ git submodule update --init --recursive
 # 2. Create .env from the template and fill in API keys
 cp .env.example .env
 $EDITOR .env
-# Required: DB_PASSWORD, APP_SECRET_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY,
-#           QDRANT_URL, QDRANT_API_KEY_RO (from RAG team after each ingestion run)
+# Required: DB_PASSWORD, APP_SECRET_KEY, provider keys for the selected
+#           CLASSIFIER/REASONING/EMBEDDING providers, and vector-store access.
 
 # 3. Build and start the full stack
 docker compose up --build
@@ -213,9 +215,12 @@ az account set --subscription "<your-subscription-id>"
 The backend team provides a provisioning script that creates all backend Azure resources in one run.
 
 ```bash
-# Set the secrets the script will store in Key Vault
+# Set the secrets the script will store in Key Vault for the default provider profile.
 export ANTHROPIC_API_KEY="sk-ant-..."
 export OPENAI_API_KEY="sk-..."
+export GROQ_API_KEY=""
+export TOGETHER_API_KEY=""
+export GOOGLE_API_KEY=""
 export QDRANT_URL="https://your-cluster.qdrant.io"
 export QDRANT_API_KEY_RO="..."     # read-only key for chain/app at query time
 export APP_SECRET_KEY="$(openssl rand -hex 32)"
@@ -758,9 +763,15 @@ curl https://$FQDN/auth/register \
 | ------------------------ | --------- | ----------------------------------------------------------- |
 | `APP_ENV`                | Inline    | `staging` or `production`                                   |
 | `APP_PORT`               | Inline    | `8000`                                                      |
-| `QDRANT_COLLECTION_NAME` | Inline    | `movies`                                                    |
-| `EMBEDDING_MODEL`        | Inline    | `text-embedding-3-large`                                    |
-| `EMBEDDING_DIMENSION`    | Inline    | `3072`                                                      |
+| `CLASSIFIER_PROVIDER`    | Inline    | `anthropic`, `openai`, `groq`, `together`, `ollama`, or `google` |
+| `CLASSIFIER_MODEL`       | Inline    | Classifier/confirmation model                               |
+| `REASONING_PROVIDER`     | Inline    | `anthropic`, `openai`, `groq`, `together`, `ollama`, or `google` |
+| `REASONING_MODEL`        | Inline    | Reasoning and Q&A model                                     |
+| `EMBEDDING_PROVIDER`     | Inline    | `openai`, `ollama`, `sentence-transformers`, or `huggingface` |
+| `EMBEDDING_MODEL`        | Inline    | Must match the RAG ingestion model                          |
+| `EMBEDDING_DIMENSION`    | Inline    | Must match the RAG ingestion vector dimension                |
+| `VECTOR_STORE`           | Inline    | `qdrant`, `chromadb`, `pinecone`, or `pgvector`              |
+| `VECTOR_COLLECTION_PREFIX` | Inline  | Final target is `{prefix}_{sanitized_model}_{dimension}`     |
 | `RAG_TOP_K`              | Inline    | `8`                                                         |
 | `MAX_REFINEMENTS`        | Inline    | `3`                                                         |
 | `IMDB_SEARCH_LIMIT`      | Inline    | `3` (imdbapi.dev requires no API key)                       |
@@ -774,8 +785,11 @@ curl https://$FQDN/auth/register \
 | `LANGSMITH_TRACING`      | Inline    | `false` (enable for debugging)                              |
 | `APP_SECRET_KEY`         | Key Vault | JWT signing key                                             |
 | `DATABASE_URL`           | Key Vault | `postgresql://user:pass@pg-server:5432/dbname`              |
-| `ANTHROPIC_API_KEY`      | Key Vault | Claude models                                               |
-| `OPENAI_API_KEY`         | Key Vault | OpenAI embeddings                                           |
+| `ANTHROPIC_API_KEY`      | Key Vault | Anthropic provider key when selected                        |
+| `OPENAI_API_KEY`         | Key Vault | OpenAI chat or embedding key when selected                   |
+| `GROQ_API_KEY`           | Key Vault | Groq provider key when selected                             |
+| `TOGETHER_API_KEY`       | Key Vault | Together provider key when selected                         |
+| `GOOGLE_API_KEY`         | Key Vault | Google provider key when selected                           |
 | `QDRANT_URL`             | Key Vault | Qdrant Cloud cluster URL                                    |
 | `QDRANT_API_KEY_RO`      | Key Vault | Qdrant read-only API key (runtime)                          |
 

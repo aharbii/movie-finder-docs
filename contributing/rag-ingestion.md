@@ -80,11 +80,11 @@ Required Jenkins credentials: `qdrant-url`, `qdrant-api-key-rw`, `openai-api-key
 Copy `.env.example` to `.env` and fill in:
 
 ```
-OPENAI_API_KEY
-QDRANT_URL, QDRANT_API_KEY_RW, QDRANT_COLLECTION_NAME
+EMBEDDING_PROVIDER, EMBEDDING_MODEL, EMBEDDING_DIMENSION
+VECTOR_STORE, VECTOR_COLLECTION_PREFIX
+QDRANT_URL, QDRANT_API_KEY_RW  (when VECTOR_STORE=qdrant)
+OPENAI_API_KEY, GOOGLE_API_KEY, OLLAMA_BASE_URL  (as selected)
 KAGGLE_API_TOKEN
-EMBEDDING_MODEL=text-embedding-3-large
-EMBEDDING_DIMENSION=3072
 ```
 
 ---
