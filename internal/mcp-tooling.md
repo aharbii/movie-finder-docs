@@ -32,9 +32,10 @@ They are never deployed to Azure or exposed via HTTP.
 ```
 QDRANT_URL                # Qdrant Cloud cluster URL
 QDRANT_API_KEY_RO         # Read-only Qdrant API key
-QDRANT_COLLECTION_NAME    # Collection to query (e.g. movie_finder)
-OPENAI_API_KEY            # For embedding queries
-OPENAI_EMBEDDING_MODEL    # e.g. text-embedding-3-large
+VECTOR_COLLECTION_PREFIX  # Target prefix; final name is prefix_model_dimension
+EMBEDDING_PROVIDER        # e.g. openai or ollama
+EMBEDDING_MODEL           # e.g. text-embedding-3-large
+OPENAI_API_KEY            # When EMBEDDING_PROVIDER=openai
 ```
 
 **Available tools:**
