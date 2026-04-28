@@ -28,10 +28,10 @@ We are adopting a unified **Provider Factory Pattern** across the entire project
 3. **Singleton Caching:**
    To prevent connection pool exhaustion and redundant initialization, factory functions must be decorated with `@lru_cache(maxsize=1)`.
 
-4. **Zero-Collision Qdrant Collection Naming:**
-   Because different embedding models produce vectors of different dimensions (and even models of the same dimension have incompatible vector spaces), the Qdrant collection name will no longer be static.
-   Both the RAG ingestion pipeline and the backend runtime MUST dynamically resolve the collection name using the format:
-   `{QDRANT_COLLECTION_PREFIX}_{sanitized_model_name}_{dimension}`
+4. **Zero-Collision Vector Target Naming:**
+   Because different embedding models produce vectors of different dimensions (and even models of the same dimension have incompatible vector spaces), the vector collection/table/namespace name will no longer be static.
+   Both the RAG ingestion pipeline and the backend runtime MUST dynamically resolve the vector target using the format:
+   `{VECTOR_COLLECTION_PREFIX}_{sanitized_model_name}_{dimension}`
    *(Example: `movies_bge_m3_1024` or `movies_text_embedding_3_large_3072`)*.
 
 5. **Docker Image Optimization (Optional Dependencies):**
@@ -47,4 +47,4 @@ We are adopting a unified **Provider Factory Pattern** across the entire project
 
 **Negative:**
 - **Complexity:** The configuration schema is more verbose. Developers must ensure they have the correct optional dependencies installed if they choose an alternative provider.
-- **Coordination:** The backend and the RAG ingestion pipelines must maintain strict parity on how they sanitize model names to generate the Qdrant collection suffix, otherwise the backend will query a non-existent collection.
+- **Coordination:** The backend and the RAG ingestion pipelines must maintain strict parity on how they sanitize model names to generate the vector target suffix, otherwise the backend will query a non-existent target.
