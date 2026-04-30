@@ -89,7 +89,7 @@ make test           # all tests
 make test-coverage  # with coverage report
 ```
 
-- Mock external services (Qdrant, OpenAI, Anthropic, imdbapi) — no real API calls in unit tests
+- Mock external services (vector store, provider SDKs, imdbapi) — no real API calls in unit tests
 - `pytest --asyncio-mode=auto` is configured — `async def test_*` works without `@pytest.mark.asyncio`
 - Coverage must not regress
 
@@ -100,9 +100,13 @@ make test-coverage  # with coverage report
 Copy `backend/chain/.env.example` to `.env` and fill in:
 
 ```
-ANTHROPIC_API_KEY, OPENAI_API_KEY
-QDRANT_URL, QDRANT_API_KEY_RO, QDRANT_COLLECTION_NAME
-CLASSIFIER_MODEL, REASONING_MODEL
+CLASSIFIER_PROVIDER, CLASSIFIER_MODEL
+REASONING_PROVIDER, REASONING_MODEL
+EMBEDDING_PROVIDER, EMBEDDING_MODEL, EMBEDDING_DIMENSION
+VECTOR_STORE, VECTOR_COLLECTION_PREFIX
+QDRANT_URL, QDRANT_API_KEY_RO  (when VECTOR_STORE=qdrant)
+ANTHROPIC_API_KEY, OPENAI_API_KEY, GROQ_API_KEY, TOGETHER_API_KEY, GOOGLE_API_KEY  (as selected)
+OLLAMA_BASE_URL  (when using Ollama)
 RAG_TOP_K, MAX_REFINEMENTS, IMDB_SEARCH_LIMIT, CONFIDENCE_THRESHOLD
 LANGSMITH_TRACING, LANGSMITH_API_KEY, LANGSMITH_PROJECT  (optional)
 ```

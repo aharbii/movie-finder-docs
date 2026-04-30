@@ -32,10 +32,15 @@ They are never deployed to Azure or exposed via HTTP.
 ```
 QDRANT_URL                # Qdrant Cloud cluster URL
 QDRANT_API_KEY_RO         # Read-only Qdrant API key
-QDRANT_COLLECTION_NAME    # Collection to query (e.g. movie_finder)
-OPENAI_API_KEY            # For embedding queries
-OPENAI_EMBEDDING_MODEL    # e.g. text-embedding-3-large
+VECTOR_STORE_TARGET_NAME  # Fully resolved collection name, e.g. movies_text_embedding_3_large_3072
+EMBEDDING_PROVIDER        # e.g. openai or ollama
+EMBEDDING_MODEL           # e.g. text-embedding-3-large
+OPENAI_API_KEY            # When EMBEDDING_PROVIDER=openai
 ```
+
+Resolve `VECTOR_STORE_TARGET_NAME` with the same embedding config used for RAG ingestion and
+chain query-time retrieval. Use `resolve_vector_collection_name()` in chain, or read the
+ingestion output env for the final collection name.
 
 **Available tools:**
 - `qdrant_search` — semantic search by query string

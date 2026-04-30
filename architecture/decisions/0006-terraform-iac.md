@@ -19,7 +19,7 @@ one-time manual steps with no version-controlled state. This caused several prob
    production environments with different resource sizes but identical topology.
 4. **No multi-cloud path**: if the team ever needed to run on AWS or GCP, there was no
    abstraction layer — every resource would need to be re-created from scratch.
-5. **Secrets not lifecycle-managed**: the `provision.sh` script baked secrets directly into
+5. **Secrets not lifecycle-managed**: manual provisioning baked secrets directly into
    container app environment variables rather than using Key Vault references.
 
 ---
